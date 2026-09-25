@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import '../config/auth_http.dart' as http;
 import 'package:terrascope/config/api_config.dart';
 
 class AuthService {
@@ -8,34 +8,21 @@ class AuthService {
   /// 🔹 LOGIN (valida usuario por email y contraseña)
   Future<Map<String, dynamic>?> login(String email, String password) async {
     try {
-      final response = await http.get(Uri.parse(baseUrl));
+      final response = await http.post(
+        Uri.parse('$baseUrl/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'email_usuario': email,
+          'contrasenia_usuario': password,
+        }),
+      );
 
       if (response.statusCode == 200) {
-        final List<dynamic> usuarios = json.decode(response.body);
-
-        final usuario = usuarios.firstWhere(
-          (u) =>
-              u['email_usuario'] == email &&
-              u['contrasenia_usuario'] == password,
-          orElse: () => null,
-        );
-
-        if (usuario != null) {
-          final userData = {
-            '_id': usuario['_id'], // 👈 importante para validación
-            'nombre_usuario': usuario['nombre_usuario'],
-            'email_usuario': usuario['email_usuario'],
-            'rol_usuario': usuario['rol']?['nombre_rol'] ?? 'Usuario',
-          };
-
-          print('✅ Usuario autenticado: $userData');
-          return userData;
-        } else {
-          print('⚠️ Usuario no encontrado o credenciales inválidas.');
-          return null;
-        }
+        final userData = json.decode(response.body);
+        print('✅ Usuario autenticado: $userData');
+        return userData;
       } else {
-        print('❌ Error del servidor: ${response.statusCode}');
+        print('⚠️ Usuario no encontrado o credenciales inválidas. Status: ${response.statusCode}');
         return null;
       }
     } catch (e) {

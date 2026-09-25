@@ -155,8 +155,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final userId = widget.userData['_id'];
-      
+      final userId = widget.userData['id']?.toString() ?? widget.userData['_id']?.toString();
+      if (userId == null) {
+        throw Exception('ID de usuario no encontrado');
+      }
       // Preparar datos a actualizar
       Map<String, dynamic> datosActualizados = {
         'nombre_usuario': _nombreController.text.trim(),

@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import '../config/auth_http.dart' as http;
 import '../components/models/reto_model.dart';
 import '../config/api_config.dart';
 

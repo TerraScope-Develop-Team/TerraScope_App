@@ -17,8 +17,8 @@ class Habitat {
       };
 
   factory Habitat.fromJson(Map<String, dynamic> json) {
-    // MongoDB retorna '_id' como ObjectId
-    final id = json['_id']?.toString() ?? '';
+    // Prisma retorna 'id', MongoDB nativo retorna '_id'
+    final id = json['id']?.toString() ?? json['_id']?.toString() ?? '';
     final nombre = json['nombre_habitat'] ?? 'Sin nombre';
     final descripcion = json['descripcion_habitat'] ?? 'Sin descripción';
     

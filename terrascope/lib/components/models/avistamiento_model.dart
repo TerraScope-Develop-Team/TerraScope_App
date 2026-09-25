@@ -41,7 +41,7 @@ class Avistamiento {
 
   factory Avistamiento.fromJson(Map<String, dynamic> json) {
     return Avistamiento(
-      id: json['_id'] ?? '',
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
       idUsuario: json['id_usuario'], 
       nombreComun: json['nombre_comun'] ?? '',
       nombreCientifico: json['nombre_cientifico'] ?? '',

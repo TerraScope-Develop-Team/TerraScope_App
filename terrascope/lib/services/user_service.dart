@@ -1,9 +1,9 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import '../config/auth_http.dart' as http;
+import '../config/api_config.dart';
 
 class ApiService {
-  static const String baseUrl =
-      "http://192.168.7.146:3000/api"; // Cambia a tu IP si pruebas en móvil
+  static const String baseUrl = ApiConfig.baseUrl;
 
   // obtener todos los usuarios
   static Future<List<dynamic>> getUsuarios() async {

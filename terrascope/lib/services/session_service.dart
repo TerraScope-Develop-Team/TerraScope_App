@@ -1,14 +1,24 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 
 class SessionService {
   static const String _keyUserData = 'user_data';
   static const String _keyIsLoggedIn = 'is_logged_in';
+  final _secureStorage = const FlutterSecureStorage();
+  static const String _keyToken = 'jwt_token';
 
   /// Guardar sesión del usuario
   Future<bool> saveSession(Map<String, dynamic> userData) async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      
+      // Si el objeto contiene el token, guardarlo seguro y extraerlo de los datos generales
+      if (userData.containsKey('token')) {
+        await _secureStorage.write(key: _keyToken, value: userData['token']);
+        userData.remove('token');
+      }
+
       await prefs.setString(_keyUserData, json.encode(userData));
       await prefs.setBool(_keyIsLoggedIn, true);
       return true;
@@ -30,6 +40,16 @@ class SessionService {
       return null;
     } catch (e) {
       print('Error al obtener datos del usuario: $e');
+      return null;
+    }
+  }
+
+  /// Obtener el token JWT
+  Future<String?> getToken() async {
+    try {
+      return await _secureStorage.read(key: _keyToken);
+    } catch (e) {
+      print('Error al obtener token: $e');
       return null;
     }
   }
@@ -66,6 +86,7 @@ Future<String?> getUserId() async {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_keyUserData);
       await prefs.setBool(_keyIsLoggedIn, false);
+      await _secureStorage.delete(key: _keyToken);
       return true;
     } catch (e) {
       print('Error al cerrar sesión: $e');
