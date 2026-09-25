@@ -4,17 +4,33 @@ import 'dart:convert';
 class SessionService {
   static const String _keyUserData = 'user_data';
   static const String _keyIsLoggedIn = 'is_logged_in';
+  static const String _keyToken = 'auth_token';
 
   /// Guardar sesión del usuario
   Future<bool> saveSession(Map<String, dynamic> userData) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_keyUserData, json.encode(userData));
+      final token = userData['token'] as String?;
+      if (token == null || token.isEmpty) {
+        return false;
+      }
+      await prefs.setString(_keyToken, token);
       await prefs.setBool(_keyIsLoggedIn, true);
       return true;
     } catch (e) {
       print('Error al guardar sesión: $e');
       return false;
+    }
+  }
+
+  Future<String?> getToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_keyToken);
+    } catch (e) {
+      print('Error al obtener el token: $e');
+      return null;
     }
   }
 
@@ -65,6 +81,7 @@ Future<String?> getUserId() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_keyUserData);
+      await prefs.remove(_keyToken);
       await prefs.setBool(_keyIsLoggedIn, false);
       return true;
     } catch (e) {

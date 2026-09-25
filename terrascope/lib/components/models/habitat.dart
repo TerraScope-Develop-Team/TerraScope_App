@@ -11,20 +11,20 @@ class Habitat {
   });
 
   Map<String, dynamic> toJson() => {
-        'id_habitat': idHabitat,
-        'nombre_habitat': nombreHabitat,
-        'descripcion_habitat': descripcionHabitat,
-      };
+    'id_habitat': idHabitat,
+    'nombre_habitat': nombreHabitat,
+    'descripcion_habitat': descripcionHabitat,
+  };
 
   factory Habitat.fromJson(Map<String, dynamic> json) {
     // MongoDB retorna '_id' como ObjectId
-    final id = json['_id']?.toString() ?? '';
+    final id = (json['_id'] ?? json['id_habitat'])?.toString() ?? '';
     final nombre = json['nombre_habitat'] ?? 'Sin nombre';
     final descripcion = json['descripcion_habitat'] ?? 'Sin descripción';
-    
+
     // Debug
     print('🔍 Habitat.fromJson - _id: ${json['_id']}, ID capturado: "$id"');
-    
+
     return Habitat(
       idHabitat: id,
       nombreHabitat: nombre,
@@ -35,5 +35,3 @@ class Habitat {
   @override
   String toString() => 'Habitat(id: $idHabitat, nombre: $nombreHabitat)';
 }
-
-

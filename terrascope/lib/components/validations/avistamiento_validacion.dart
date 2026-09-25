@@ -64,7 +64,7 @@ class AvistamientoValidacionProvider with ChangeNotifier {
         "📤 Enviando voto de usuario $idUsuario → avistamiento $idAvistamiento",
       );
 
-      await _service.votarAvistamiento(idAvistamiento, idUsuario);
+      await _service.votarAvistamiento(idAvistamiento);
 
       log("✅ Voto enviado correctamente. Recargando lista...");
       await cargarAvistamientos();
@@ -98,7 +98,7 @@ class AvistamientoValidacionProvider with ChangeNotifier {
       final rol = userData['rol'];
       log("📤 Enviando validación como experto → usuario $idUsuario ($rol)");
 
-      await _service.validarComoExperto(idAvistamiento, idUsuario, rol);
+      await _service.validarComoExperto(idAvistamiento);
 
       log("✅ Validación por experto exitosa. Recargando lista...");
       await cargarAvistamientos();
@@ -125,10 +125,7 @@ class AvistamientoValidacionProvider with ChangeNotifier {
       log("👤 Usuario en sesión: $idUsuario");
 
       // 🔹 Llamada al service pasando userId
-      final estado = await _service.getEstadoValidacion(
-        idAvistamiento,
-        idUsuario,
-      );
+      final estado = await _service.getEstadoValidacion(idAvistamiento);
 
       if (estado != null) {
         final yaVoto = estado['yaVoto'] ?? false;
