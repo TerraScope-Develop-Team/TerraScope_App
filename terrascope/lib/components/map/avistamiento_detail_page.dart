@@ -63,8 +63,6 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
 
       await AvistamientoService.addComentario(
         widget.avistamiento.id,
-        widget.usuarioId ?? '000000000000000000000000',
-        nombreUsuario,
         _comentarioController.text.trim(),
       );
 

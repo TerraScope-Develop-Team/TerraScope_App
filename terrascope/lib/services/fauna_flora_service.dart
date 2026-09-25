@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:terrascope/services/api_client.dart' as http;
 import '../components/models/avistamiento_model.dart';
 
 class FaunaFloraService {
@@ -31,10 +31,7 @@ class FaunaFloraService {
   }
 
   /// 🔹 Votar por un avistamiento (comunidad)
-  Future<void> votarAvistamiento(
-    String idAvistamiento,
-    String idUsuario,
-  ) async {
+  Future<void> votarAvistamiento(String idAvistamiento) async {
     final url = Uri.parse('$baseUrl/fauna-flora/$idAvistamiento/votar');
 
     try {
@@ -42,7 +39,6 @@ class FaunaFloraService {
       final response = await http.put(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({'id_usuario': idUsuario}),
       );
 
       print("📬 Respuesta voto: [${response.statusCode}] ${response.body}");
@@ -57,11 +53,7 @@ class FaunaFloraService {
   }
 
   /// 🔹 Validar avistamiento como experto
-  Future<void> validarComoExperto(
-    String idAvistamiento,
-    String idUsuario,
-    String rol,
-  ) async {
+  Future<void> validarComoExperto(String idAvistamiento) async {
     final url = Uri.parse(
       '$baseUrl/fauna-flora/$idAvistamiento/validar-experto',
     );
@@ -71,7 +63,6 @@ class FaunaFloraService {
       final response = await http.put(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({'id_usuario': idUsuario, 'rol': rol}),
       );
 
       print(
@@ -92,11 +83,8 @@ class FaunaFloraService {
   /// 🔹 Obtener estado de validación (incluye yaVoto y usuarios_validadores)
   Future<Map<String, dynamic>?> getEstadoValidacion(
     String idAvistamiento,
-    String idUsuario,
   ) async {
-    final url = Uri.parse(
-      '$baseUrl/fauna-flora/$idAvistamiento/validacion?userId=$idUsuario',
-    );
+    final url = Uri.parse('$baseUrl/fauna-flora/$idAvistamiento/validacion');
 
     try {
       print("📡 GET estado validación → $url");
@@ -223,22 +211,12 @@ class FaunaFloraService {
   }
 
   /// Agregar comentario a un avistamiento
-  Future<bool> addComentario(
-    String avistamientoId,
-    String idUsuario,
-    String nombreUsuario,
-    String comentario,
-  ) async {
+  Future<bool> addComentario(String avistamientoId, String comentario) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/fauna-flora/$avistamientoId/comentarios'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'id_usuario': idUsuario,
-          'nombre_usuario': nombreUsuario,
-          'comentario': comentario,
-          'fecha': DateTime.now().toIso8601String(),
-        }),
+        body: json.encode({'comentario': comentario}),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -303,7 +281,9 @@ class FaunaFloraService {
   Future<List<Avistamiento>> getFaunaFloraByEspecie(String especie) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/fauna-flora/especie/$especie'),
+        Uri.parse(
+          '$baseUrl/fauna-flora/especie/${Uri.encodeComponent(especie)}',
+        ),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -338,7 +318,9 @@ class FaunaFloraService {
   ) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/fauna-flora/usuario/$nombreUsuario'),
+        Uri.parse(
+          '$baseUrl/fauna-flora/usuario/${Uri.encodeComponent(nombreUsuario)}',
+        ),
         headers: {'Content-Type': 'application/json'},
       );
 
