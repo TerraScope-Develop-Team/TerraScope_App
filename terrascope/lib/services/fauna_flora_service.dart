@@ -33,7 +33,6 @@ class FaunaFloraService {
   /// 🔹 Votar por un avistamiento (comunidad)
   Future<void> votarAvistamiento(
     String idAvistamiento,
-    String idUsuario,
   ) async {
     final url = Uri.parse('$baseUrl/fauna-flora/$idAvistamiento/votar');
 
@@ -42,7 +41,6 @@ class FaunaFloraService {
       final response = await http.put(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({'id_usuario': idUsuario}),
       );
 
       print("📬 Respuesta voto: [${response.statusCode}] ${response.body}");
@@ -59,8 +57,6 @@ class FaunaFloraService {
   /// 🔹 Validar avistamiento como experto
   Future<void> validarComoExperto(
     String idAvistamiento,
-    String idUsuario,
-    String rol,
   ) async {
     final url = Uri.parse(
       '$baseUrl/fauna-flora/$idAvistamiento/validar-experto',
@@ -71,7 +67,6 @@ class FaunaFloraService {
       final response = await http.put(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({'id_usuario': idUsuario, 'rol': rol}),
       );
 
       print(
@@ -92,10 +87,9 @@ class FaunaFloraService {
   /// 🔹 Obtener estado de validación (incluye yaVoto y usuarios_validadores)
   Future<Map<String, dynamic>?> getEstadoValidacion(
     String idAvistamiento,
-    String idUsuario,
   ) async {
     final url = Uri.parse(
-      '$baseUrl/fauna-flora/$idAvistamiento/validacion?userId=$idUsuario',
+      '$baseUrl/fauna-flora/$idAvistamiento/validacion',
     );
 
     try {
@@ -225,8 +219,6 @@ class FaunaFloraService {
   /// Agregar comentario a un avistamiento
   Future<bool> addComentario(
     String avistamientoId,
-    String idUsuario,
-    String nombreUsuario,
     String comentario,
   ) async {
     try {
@@ -234,10 +226,7 @@ class FaunaFloraService {
         Uri.parse('$baseUrl/fauna-flora/$avistamientoId/comentarios'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'id_usuario': idUsuario,
-          'nombre_usuario': nombreUsuario,
           'comentario': comentario,
-          'fecha': DateTime.now().toIso8601String(),
         }),
       );
 
