@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:terrascope/services/api_client.dart' as http;
 import 'package:terrascope/components/models/zona_frecuente.dart';
 import '../components/models/avistamiento_model.dart';
 import '../config/api_config.dart';
@@ -48,19 +48,12 @@ class AvistamientoService {
 
   static Future<void> addComentario(
     String avistamientoId,
-    String usuarioId,
-    String nombreUsuario,
     String comentario,
   ) async {
     final response = await http.post(
       Uri.parse('${ApiConfig.baseUrl}/fauna-flora/$avistamientoId/comentarios'),
       headers: {'Content-Type': 'application/json'},
-      body: json.encode({
-        if (usuarioId.isNotEmpty && usuarioId != '000000000000000000000000')
-          'id_usuario': usuarioId,
-        'nombre_usuario': nombreUsuario,
-        'comentario': comentario,
-      }),
+      body: json.encode({'comentario': comentario}),
     );
 
     if (response.statusCode != 200) {
