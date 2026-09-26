@@ -303,7 +303,9 @@ class FaunaFloraService {
   Future<List<Avistamiento>> getFaunaFloraByEspecie(String especie) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/fauna-flora/especie/$especie'),
+        Uri.parse(
+          '$baseUrl/fauna-flora/especie/${Uri.encodeComponent(especie)}',
+        ),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -338,7 +340,9 @@ class FaunaFloraService {
   ) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/fauna-flora/usuario/$nombreUsuario'),
+        Uri.parse(
+          '$baseUrl/fauna-flora/usuario/${Uri.encodeComponent(nombreUsuario)}',
+        ),
         headers: {'Content-Type': 'application/json'},
       );
 
