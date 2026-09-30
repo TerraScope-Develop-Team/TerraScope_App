@@ -422,6 +422,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _isFollowing = false;
             _totalSeguidores = (_totalSeguidores - 1).clamp(0, 999999);
           });
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No se pudo dejar de seguir al usuario')),
+          );
         }
       } else {
         final res = await _authService.seguirUsuario(_targetUserId!);
@@ -430,6 +434,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _isFollowing = true;
             _totalSeguidores += 1;
           });
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No se pudo seguir al usuario')),
+          );
         }
       }
     } catch (e) {

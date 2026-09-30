@@ -32,8 +32,9 @@ class FaunaFloraService {
 
   /// 🔹 Votar por un avistamiento (comunidad)
   Future<void> votarAvistamiento(
-    String idAvistamiento,
-  ) async {
+    String idAvistamiento, {
+    String? idUsuario,
+  }) async {
     final url = Uri.parse('$baseUrl/fauna-flora/$idAvistamiento/votar');
 
     try {
@@ -41,6 +42,9 @@ class FaunaFloraService {
       final response = await http.put(
         url,
         headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          if (idUsuario != null && idUsuario.isNotEmpty) 'id_usuario': idUsuario,
+        }),
       );
 
       print("📬 Respuesta voto: [${response.statusCode}] ${response.body}");
@@ -56,8 +60,10 @@ class FaunaFloraService {
 
   /// 🔹 Validar avistamiento como experto
   Future<void> validarComoExperto(
-    String idAvistamiento,
-  ) async {
+    String idAvistamiento, {
+    String? idUsuario,
+    String? rol,
+  }) async {
     final url = Uri.parse(
       '$baseUrl/fauna-flora/$idAvistamiento/validar-experto',
     );
@@ -67,6 +73,10 @@ class FaunaFloraService {
       final response = await http.put(
         url,
         headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          if (idUsuario != null && idUsuario.isNotEmpty) 'id_usuario': idUsuario,
+          if (rol != null && rol.isNotEmpty) 'rol': rol,
+        }),
       );
 
       print(

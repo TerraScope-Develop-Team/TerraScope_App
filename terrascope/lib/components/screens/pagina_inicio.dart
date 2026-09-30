@@ -623,7 +623,10 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
       print(
         "📨 [DEBUG] Enviando voto de usuario $_idUsuario para ${widget.data.id}",
       );
-      await widget.service.votarAvistamiento(widget.data.id);
+      await widget.service.votarAvistamiento(
+        widget.data.id,
+        idUsuario: _idUsuario,
+      );
     } catch (e) {
       // ⚠️ Aquí capturamos el error 400 y seguimos
       if (e.toString().contains('400')) {
@@ -644,7 +647,11 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
     setState(() => _isLoadingValidacion = true);
     try {
       print("👨‍🔬 [DEBUG] Validación experta por $_rolUsuario ($_idUsuario)");
-      await widget.service.validarComoExperto(widget.data.id);
+      await widget.service.validarComoExperto(
+        widget.data.id,
+        idUsuario: _idUsuario,
+        rol: _rolUsuario,
+      );
       await _cargarEstadoValidacion();
     } catch (e) {
       print('❌ Error al validar como experto: $e');

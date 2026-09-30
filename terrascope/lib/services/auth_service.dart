@@ -151,6 +151,7 @@ class AuthService {
       if (response.statusCode == 200) {
         return json.decode(response.body) as Map<String, dynamic>;
       }
+      print('Error al seguir usuario (${response.statusCode}): ${response.body}');
       return null;
     } catch (e) {
       print('Error al seguir usuario: $e');
@@ -169,6 +170,7 @@ class AuthService {
       if (response.statusCode == 200) {
         return json.decode(response.body) as Map<String, dynamic>;
       }
+      print('Error al dejar de seguir usuario (${response.statusCode}): ${response.body}');
       return null;
     } catch (e) {
       print('Error al dejar de seguir usuario: $e');
