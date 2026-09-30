@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'package:terrascope/services/api_client.dart' as http;
-import 'package:terrascope/config/api_config.dart';
+import '../config/auth_http.dart' as http;
+import '../config/api_config.dart';
 
 class ApiService {
   static const String baseUrl = ApiConfig.baseUrl;

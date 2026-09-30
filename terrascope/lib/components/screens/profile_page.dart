@@ -214,7 +214,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildProfileHeader() {
     final imagenPerfil = _userData?['imagen_perfil'];
     final nombre = _userData?['nombre_usuario'] ?? 'Usuario';
-    final rol = _userData?['rol']?['nombre_rol'] ?? 'Usuario';
+    final rol = _userData?['rol'] ?? 'Usuario';
     final tituloActivo = _userData?['titulo_activo'];
     final imageProvider = _getImageProvider(imagenPerfil);
 
