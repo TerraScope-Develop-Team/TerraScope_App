@@ -1,25 +1,35 @@
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:terrascope/config/api_config.dart';
 import 'package:terrascope/services/session_service.dart';
-import 'dart:ui';
-import 'dart:convert';
 
 class SocketService {
   static final SocketService _instance = SocketService._internal();
   factory SocketService() => _instance;
-  
+
   IO.Socket? _socket;
-  void Function(String title, String body)? _currentOnAlert;
-  
+  Future<void> Function(
+    String title,
+    String body,
+    Map<String, dynamic> alertData,
+  )?
+  _currentOnAlert;
+
   SocketService._internal();
 
-  Future<void> initSocket({void Function(String title, String body)? onAlert}) async {
+  Future<void> initSocket({
+    Future<void> Function(
+      String title,
+      String body,
+      Map<String, dynamic> alertData,
+    )?
+    onAlert,
+  }) async {
     if (onAlert != null) {
       _currentOnAlert = onAlert;
     }
-    
+
     if (_socket != null && _socket!.connected) return;
-    
+
     // Obtener userId si existe
     final sessionData = await SessionService().getUserData();
     final userId = sessionData?['_id'];
@@ -41,12 +51,19 @@ class SocketService {
       }
     });
 
-    _socket!.on('nuevaAlertaPeligro', (data) {
+    _socket!.on('nuevaAlertaPeligro', (data) async {
       print('Nueva alerta de peligro recibida: $data');
       if (_currentOnAlert != null) {
-        _currentOnAlert!(
-          '¡Alerta de Fauna Peligrosa!', 
-          'Se ha reportado la especie ${data['especie']} cerca de tu ubicación.'
+        if (data is! Map) {
+          print('La alerta de fauna recibida no tiene un formato válido');
+          return;
+        }
+        final alertData = Map<String, dynamic>.from(data);
+        final especie = alertData['especie']?.toString() ?? 'Desconocida';
+        await _currentOnAlert!(
+          '¡Alerta de Fauna Peligrosa!',
+          'Se ha reportado la especie $especie cerca de tu ubicación.',
+          alertData,
         );
       }
     });

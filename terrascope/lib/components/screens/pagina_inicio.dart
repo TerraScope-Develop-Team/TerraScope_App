@@ -15,8 +15,11 @@ import '../../services/theme_service.dart';
 import '../../services/routing_service.dart';
 import '../../services/alerta_service.dart';
 import '../../services/socket_service.dart';
+import '../../services/danger_alert_presenter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
+import '../ui/slide_to_confirm.dart';
+import 'notification_center_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -34,6 +37,7 @@ class _HomePageState extends State<HomePage> {
   String? _error;
   int _currentIndex = 0;
   String? _filtroTipo;
+  bool _mostrarSoloSeguidos = false;
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -53,66 +57,117 @@ class _HomePageState extends State<HomePage> {
         listen: false,
       );
       provider.setNotificationService(notificationService);
-      
+
       SocketService().initSocket(
-        onAlert: (title, body) {
-          notificationService.showNotification(
-            AppNotification(
-              id: 'alerta_peligro_${DateTime.now().millisecondsSinceEpoch}',
+        onAlert: (title, body, alertData) async {
+          try {
+            await DangerAlertPresenter.present(
+              notificationService: notificationService,
+              alert: alertData,
               title: title,
               message: body,
-              type: NotificationType.error,
-              duration: const Duration(seconds: 10),
-            )
-          );
-        }
+            );
+          } catch (error) {
+            debugPrint('No se pudo presentar la alerta de fauna: $error');
+          }
+        },
       );
 
       _actualizarRetosYNotificaciones();
-      _checkNearbyAlerts(notificationService);
+      _loadDangerousAlerts(notificationService);
     });
   }
 
-  Future<void> _checkNearbyAlerts(NotificationService notificationService) async {
+  Future<void> _loadDangerousAlerts(
+    NotificationService notificationService,
+  ) async {
     try {
       final userData = await _sessionService.getUserData();
-      final recibirAlertas = userData?['recibir_alertas_peligro'] ?? true;
-      if (!recibirAlertas) return;
+      final receiveDangerAlerts = userData?['recibir_alertas_peligro'] ?? true;
+      final alertaService = AlertaService();
 
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) return;
+      if (receiveDangerAlerts) {
+        try {
+          var permission = await Geolocator.checkPermission();
+          if (permission == LocationPermission.denied) {
+            permission = await Geolocator.requestPermission();
+          }
+
+          if (permission != LocationPermission.denied &&
+              permission != LocationPermission.deniedForever) {
+            var position = await Geolocator.getLastKnownPosition();
+            position ??= await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(
+                accuracy: LocationAccuracy.low,
+                timeLimit: Duration(seconds: 3),
+              ),
+            );
+            await alertaService.getNearbyDangerousAlerts(
+              position.latitude,
+              position.longitude,
+            );
+          }
+        } catch (error) {
+          debugPrint('No se pudieron sincronizar alertas cercanas: $error');
+        }
       }
 
-      Position? position = await Geolocator.getLastKnownPosition();
-      if (position == null) {
-        position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.low,
-          timeLimit: const Duration(seconds: 3),
-        );
-      }
+      final alerts = await alertaService.getDangerousAlerts();
+      if (!mounted) return;
 
-      final alertas = await AlertaService().getNearbyDangerousAlerts(
-        position.latitude, 
-        position.longitude
+      notificationService.setUnreadDangerousAlerts(
+        alerts
+            .where((alert) => alert['leida'] != true)
+            .map((alert) => alert['id']?.toString())
+            .whereType<String>(),
       );
 
-      if (alertas.isNotEmpty) {
-        // Mostramos notificación de que hay animales peligrosos en el área
-        final count = alertas.length;
-        notificationService.showNotification(
-          AppNotification(
-            id: 'alerta_peligro_cercana_${DateTime.now().millisecondsSinceEpoch}',
+      if (!receiveDangerAlerts) return;
+
+      final now = DateTime.now();
+      for (final alert in alerts) {
+        final createdAt = DateTime.tryParse(
+          alert['createdAt']?.toString() ?? '',
+        )?.toLocal();
+        final isRecent =
+            createdAt != null &&
+            !createdAt.isAfter(now) &&
+            now.difference(createdAt) <= const Duration(hours: 24);
+        if (alert['mostrada'] == true || !isRecent) continue;
+
+        try {
+          await DangerAlertPresenter.present(
+            notificationService: notificationService,
+            alert: alert,
             title: '¡Precaución! Zona de riesgo',
-            message: 'Hay $count especie(s) peligrosa(s) reportada(s) cerca de ti recientemente.',
-            type: NotificationType.error,
-            duration: const Duration(seconds: 15),
-          )
-        );
+            message:
+                'Especie peligrosa detectada cerca: ${alert['especie'] ?? 'Desconocida'}',
+          );
+        } catch (error) {
+          debugPrint('No se pudo presentar la alerta pendiente: $error');
+        }
+        break;
       }
     } catch (e) {
-      print('Error al buscar alertas cercanas: $e');
+      debugPrint('Error al cargar alertas de fauna: $e');
+    }
+  }
+
+  Future<void> _refreshUnreadAlertCount() async {
+    try {
+      final alerts = await AlertaService().getDangerousAlerts();
+      if (!mounted) return;
+      Provider.of<NotificationService>(
+        context,
+        listen: false,
+      ).setUnreadDangerousAlerts(
+        alerts
+            .where((alert) => alert['leida'] != true)
+            .map((alert) => alert['id']?.toString())
+            .whereType<String>(),
+      );
+    } catch (error) {
+      debugPrint('Error al actualizar el contador de alertas: $error');
     }
   }
 
@@ -134,7 +189,9 @@ class _HomePageState extends State<HomePage> {
         _error = null;
       });
 
-      final avistamientos = await _service.getAllFaunaFlora();
+      final avistamientos = _mostrarSoloSeguidos
+          ? await _service.getFeed()
+          : await _service.getAllFaunaFlora();
 
       if (mounted) {
         setState(() {
@@ -142,6 +199,7 @@ class _HomePageState extends State<HomePage> {
           _avistamientosFiltrados = avistamientos;
           _isLoading = false;
         });
+        _filtrarAvistamientos();
       }
     } catch (e) {
       if (mounted) {
@@ -188,6 +246,9 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
+    final unreadAlertCount = Provider.of<NotificationService>(
+      context,
+    ).unreadDangerousAlertCount;
     final isDark = themeProvider.isDarkMode;
 
     // Theme-aware colors
@@ -223,6 +284,49 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Centro de notificaciones',
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const NotificationCenterScreen(),
+                ),
+              );
+              await _refreshUnreadAlertCount();
+            },
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(Icons.notifications_outlined, color: appBarTextColor),
+                if (unreadAlertCount > 0)
+                  Positioned(
+                    right: -7,
+                    top: -7,
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 17,
+                        minHeight: 17,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        unreadAlertCount > 99 ? '99+' : '$unreadAlertCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
           IconButton(
             icon: Icon(Icons.emoji_events, color: appBarTextColor),
             onPressed: () {
@@ -280,10 +384,10 @@ class _HomePageState extends State<HomePage> {
                         Row(
                           children: [
                             Container(
-                              width: 40, 
-                              height: 40, 
+                              width: 40,
+                              height: 40,
                               decoration: BoxDecoration(
-                                color: Colors.grey.withOpacity(0.2), 
+                                color: Colors.grey.withOpacity(0.2),
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -291,24 +395,36 @@ class _HomePageState extends State<HomePage> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Container(width: 120, height: 14, color: Colors.grey.withOpacity(0.2)),
+                                Container(
+                                  width: 120,
+                                  height: 14,
+                                  color: Colors.grey.withOpacity(0.2),
+                                ),
                                 const SizedBox(height: 6),
-                                Container(width: 80, height: 10, color: Colors.grey.withOpacity(0.2)),
+                                Container(
+                                  width: 80,
+                                  height: 10,
+                                  color: Colors.grey.withOpacity(0.2),
+                                ),
                               ],
                             ),
                           ],
                         ),
                         const SizedBox(height: 16),
                         Container(
-                          width: double.infinity, 
-                          height: 200, 
+                          width: double.infinity,
+                          height: 200,
                           decoration: BoxDecoration(
-                            color: Colors.grey.withOpacity(0.2), 
+                            color: Colors.grey.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                         const SizedBox(height: 16),
-                        Container(width: 200, height: 16, color: Colors.grey.withOpacity(0.2)),
+                        Container(
+                          width: 200,
+                          height: 16,
+                          color: Colors.grey.withOpacity(0.2),
+                        ),
                       ],
                     ),
                   ),
@@ -360,18 +476,39 @@ class _HomePageState extends State<HomePage> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(
-                                Icons.pets_outlined,
+                                _mostrarSoloSeguidos
+                                    ? Icons.people_outline
+                                    : Icons.pets_outlined,
                                 size: 80,
                                 color: Colors.grey[400],
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                'No hay avistamientos',
+                                _mostrarSoloSeguidos
+                                    ? 'Tu feed está vacío'
+                                    : 'No hay avistamientos',
                                 style: TextStyle(
                                   fontSize: 18,
                                   color: Colors.grey[400],
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
+                              if (_mostrarSoloSeguidos) ...[
+                                const SizedBox(height: 8),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 32,
+                                  ),
+                                  child: Text(
+                                    'Sigue a otros exploradores para ver sus publicaciones aquí.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[500],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         )
@@ -407,122 +544,105 @@ class _HomePageState extends State<HomePage> {
                 ),
               ],
             ),
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.red.withOpacity(0.4),
-              blurRadius: 16,
-              spreadRadius: 2,
-              offset: const Offset(0, 4),
-            )
-          ],
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: FloatingActionButton.extended(
-          backgroundColor: Colors.red.shade700,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          onPressed: () async {
-            // Confirmar con el usuario
-            final confirm = await showDialog<bool>(
-              context: context,
-              builder: (context) => AlertDialog(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                title: const Row(
-                  children: [
-                    Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
-                    SizedBox(width: 10),
-                    Text('Emergencia SOS', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                content: const Text(
-                  '¿Estás seguro de que deseas enviar una alerta SOS?\n\n'
-                  'Esto enviará tu ubicación a las autoridades y te conectará con el 911.',
-                  style: TextStyle(height: 1.4),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancelar', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
-                  ),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red.shade700,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      elevation: 0,
-                    ),
-                    child: const Text('ENVIAR SOS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            );
-
-          if (confirm != true) return;
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Obteniendo ubicación...'), duration: Duration(seconds: 2)),
-          );
-
-          // Obtener ubicación
-          double lat = 0.0;
-          double lng = 0.0;
-          try {
-            Position position = await Geolocator.getCurrentPosition(
-              desiredAccuracy: LocationAccuracy.high,
-              timeLimit: const Duration(seconds: 10),
-            );
-            lat = position.latitude;
-            lng = position.longitude;
-            
-            // Enviar al backend
-            final alertaService = AlertaService();
-            await alertaService.sendSOS(lat, lng);
-          } catch (e) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No se pudo enviar ubicación al servidor, llamando al 911...')),
-            );
-          }
-
-          // Llamar al 911
-          final Uri url = Uri(scheme: 'tel', path: '911');
-          if (await canLaunchUrl(url)) {
-            await launchUrl(url);
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No se pudo abrir la aplicación de llamadas.')),
-            );
-          }
-        },
-        icon: const Icon(Icons.emergency, color: Colors.white, size: 26),
-        label: const Text(
-          'SOS', 
-          style: TextStyle(
-            fontWeight: FontWeight.bold, 
-            fontSize: 16, 
-            letterSpacing: 1.2
-          )
-        ),
-      ),
-    ),
-    bottomNavigationBar: BottomNavigationBar(
+      floatingActionButton: null,
+      bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFFE0E0E0),
         selectedItemColor: const Color(0xFF5C6445),
         unselectedItemColor: Colors.grey,
-        currentIndex: _currentIndex,
+        currentIndex: _currentIndex > 1 ? 1 : _currentIndex,
         onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-
-          if (index == 1) {
+          if (index == 0) {
+            setState(() {
+              _currentIndex = 0;
+            });
+          } else if (index == 1) {
+            // SOS
+            showModalBottomSheet(
+              context: context,
+              backgroundColor: Colors.transparent,
+              builder: (ctx) => Container(
+                padding: const EdgeInsets.all(24),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.red,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Emergencia SOS',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Esto enviará tu ubicación a las autoridades y te conectará con el 911 de inmediato.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.black87,
+                        height: 1.4,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    SlideToConfirm(
+                      baseColor: Colors.red.shade700,
+                      onConfirm: () async {
+                        Navigator.pop(ctx);
+                        double lat = 0.0;
+                        double lng = 0.0;
+                        try {
+                          Position position =
+                              await Geolocator.getCurrentPosition(
+                                desiredAccuracy: LocationAccuracy.high,
+                                timeLimit: const Duration(seconds: 10),
+                              );
+                          lat = position.latitude;
+                          lng = position.longitude;
+                          final alertaService = AlertaService();
+                          await alertaService.sendSOS(lat, lng);
+                        } catch (e) {
+                          // Continúa con llamada aunque falle envío
+                        }
+                        final Uri url = Uri(scheme: 'tel', path: '911');
+                        if (await canLaunchUrl(url)) await launchUrl(url);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text(
+                        'Cancelar',
+                        style: TextStyle(color: Colors.grey, fontSize: 16),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          } else if (index == 2) {
             Navigator.pushReplacementNamed(context, '/map');
           }
         },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.map), label: ''),
+        items: [
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Inicio',
+          ),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.emergency, color: Colors.red),
+            label: 'SOS',
+          ),
+          const BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Mapa'),
         ],
       ),
     );
@@ -534,6 +654,96 @@ class _HomePageState extends State<HomePage> {
       color: primaryColor,
       child: Column(
         children: [
+          // 🔹 Selector de Feed: Explorar todo vs Siguiendo
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(25),
+            ),
+            padding: const EdgeInsets.all(4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      if (_mostrarSoloSeguidos) {
+                        setState(() => _mostrarSoloSeguidos = false);
+                        _cargarAvistamientos();
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(22),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: !_mostrarSoloSeguidos
+                            ? Colors.white
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'Explorar todo',
+                          style: TextStyle(
+                            color: !_mostrarSoloSeguidos
+                                ? Colors.black87
+                                : Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      if (!_mostrarSoloSeguidos) {
+                        setState(() => _mostrarSoloSeguidos = true);
+                        _cargarAvistamientos();
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(22),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _mostrarSoloSeguidos
+                            ? Colors.white
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.people,
+                              size: 16,
+                              color: _mostrarSoloSeguidos
+                                  ? Colors.black87
+                                  : Colors.white,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Siguiendo',
+                              style: TextStyle(
+                                color: _mostrarSoloSeguidos
+                                    ? Colors.black87
+                                    : Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           TextField(
             controller: _searchController,
             onChanged: (value) => _filtrarAvistamientos(),
@@ -606,9 +816,15 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
   Map<String, dynamic>? _estadoValidacion;
   bool _yaVoto = false;
 
+  late bool _userHasLiked;
+  late int _totalLikes;
+  bool _isTogglingLike = false;
+
   @override
   void initState() {
     super.initState();
+    _totalLikes = widget.data.totalLikes;
+    _userHasLiked = widget.data.userHasLiked;
     _cargarUsuarioYValidacion();
   }
 
@@ -626,13 +842,49 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
 
     if (mounted && userData != null) {
       setState(() {
-        _idUsuario = userData['_id'] ?? '';
-        _rolUsuario = userData['rol_usuario'] ?? 'Usuario';
+        _idUsuario = userData['_id'] ?? userData['id'] ?? '';
+        _rolUsuario = userData['rol_usuario'] ?? userData['rol'] ?? 'Usuario';
+        if (_idUsuario.isNotEmpty && widget.data.likes.isNotEmpty) {
+          _userHasLiked = widget.data.likes.contains(_idUsuario);
+        }
       });
 
       print("👤 [DEBUG] Usuario actual → ID: $_idUsuario | Rol: $_rolUsuario");
     } else {
       print("⚠️ [DEBUG] No hay sesión activa o los datos son nulos.");
+    }
+  }
+
+  Future<void> _toggleLike() async {
+    if (_isTogglingLike) return;
+    setState(() {
+      _isTogglingLike = true;
+      _userHasLiked = !_userHasLiked;
+      _totalLikes += _userHasLiked ? 1 : -1;
+      if (_totalLikes < 0) _totalLikes = 0;
+    });
+
+    try {
+      final res = await widget.service.toggleLike(widget.data.id);
+      if (mounted) {
+        setState(() {
+          _userHasLiked = res['liked'] == true;
+          _totalLikes = (res['total_likes'] as num).toInt();
+          _isTogglingLike = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _userHasLiked = !_userHasLiked;
+          _totalLikes += _userHasLiked ? 1 : -1;
+          if (_totalLikes < 0) _totalLikes = 0;
+          _isTogglingLike = false;
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al alternar like: $e')));
+      }
     }
   }
 
@@ -675,7 +927,10 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
       print(
         "📨 [DEBUG] Enviando voto de usuario $_idUsuario para ${widget.data.id}",
       );
-      await widget.service.votarAvistamiento(widget.data.id);
+      await widget.service.votarAvistamiento(
+        widget.data.id,
+        idUsuario: _idUsuario,
+      );
     } catch (e) {
       // ⚠️ Aquí capturamos el error 400 y seguimos
       if (e.toString().contains('400')) {
@@ -696,7 +951,11 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
     setState(() => _isLoadingValidacion = true);
     try {
       print("👨‍🔬 [DEBUG] Validación experta por $_rolUsuario ($_idUsuario)");
-      await widget.service.validarComoExperto(widget.data.id);
+      await widget.service.validarComoExperto(
+        widget.data.id,
+        idUsuario: _idUsuario,
+        rol: _rolUsuario,
+      );
       await _cargarEstadoValidacion();
     } catch (e) {
       print('❌ Error al validar como experto: $e');
@@ -839,7 +1098,6 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
         : const Color(0xFFE0E0E0);
     final primaryTextColor = isDark ? Colors.white : const Color(0xFF0F1D33);
     final secondaryTextColor = isDark ? Colors.white70 : Colors.grey[700]!;
-    final tertiaryTextColor = isDark ? Colors.white60 : Colors.grey[600]!;
 
     final votos = _estadoValidacion?['votos_comunidad'] ?? 0;
     final requeridos = _estadoValidacion?['requeridos_comunidad'] ?? 0;
@@ -865,28 +1123,49 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
             padding: const EdgeInsets.all(12.0),
             child: Row(
               children: [
-                CircleAvatar(
-                  backgroundColor: const Color(0xFF5C6445),
-                  radius: 20,
-                  child: Text(
-                    widget.data.nombreComun[0].toUpperCase(),
-                    style: const TextStyle(
-                      color: Color(0xFFE0E0E0),
-                      fontWeight: FontWeight.bold,
-                    ),
+                InkWell(
+                  onTap: () {
+                    if (widget.data.idUsuario != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ProfileScreen(
+                            userId: widget.data.idUsuario,
+                            nombreUsuario: widget.data.nombreUsuario,
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: const Color(0xFF5C6445),
+                        radius: 18,
+                        child: Text(
+                          widget.data.nombreUsuario.isNotEmpty
+                              ? widget.data.nombreUsuario[0].toUpperCase()
+                              : 'U',
+                          style: const TextStyle(
+                            color: Color(0xFFE0E0E0),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        '@${widget.data.nombreUsuario}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: primaryTextColor,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    '@${widget.data.nombreUsuario}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: primaryTextColor,
-                    ),
-                  ),
-                ),
+                const Spacer(),
                 IconButton(
                   icon: Icon(Icons.more_vert, color: primaryTextColor),
                   onPressed: () {},
@@ -912,6 +1191,85 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
                           _buildPlaceholder(),
                     )
                   : _buildPlaceholder(),
+            ),
+          ),
+
+          // 🔹 Barra de acciones sociales (Like, Comentarios)
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
+            child: Row(
+              children: [
+                InkWell(
+                  onTap: _toggleLike,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _userHasLiked
+                          ? Colors.red.withOpacity(0.1)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _userHasLiked
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          color: _userHasLiked ? Colors.red : primaryTextColor,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '$_totalLikes',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: _userHasLiked
+                                ? Colors.red
+                                : primaryTextColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                InkWell(
+                  onTap: widget.onTap,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.chat_bubble_outline,
+                          color: primaryTextColor,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${widget.data.totalComentarios > 0 ? widget.data.totalComentarios : widget.data.comentarios.length}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: primaryTextColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
 
@@ -1219,8 +1577,7 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                if (widget.data.comentarios != null &&
-                    widget.data.comentarios.isNotEmpty)
+                if (widget.data.comentarios.isNotEmpty)
                   ...widget.data.comentarios.map(
                     (c) => _buildComentarioCard(
                       c,

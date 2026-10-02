@@ -6,6 +6,7 @@ import 'package:terrascope/services/session_service.dart';
 import 'package:terrascope/services/socket_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:terrascope/services/alerta_service.dart';
+import 'package:terrascope/services/danger_alert_presenter.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -84,19 +85,23 @@ class _LoginPageState extends State<LoginPage>
         print('👤 Usuario: ${user['nombre_usuario']}');
 
         // Conectar al WebSocket para recibir alertas en tiempo real
-        final notificationService = Provider.of<NotificationService>(context, listen: false);
+        final notificationService = Provider.of<NotificationService>(
+          context,
+          listen: false,
+        );
         await SocketService().initSocket(
-          onAlert: (title, body) {
-            notificationService.showNotification(
-              AppNotification(
-                id: 'alerta_peligro_${DateTime.now().millisecondsSinceEpoch}',
+          onAlert: (title, body, alertData) async {
+            try {
+              await DangerAlertPresenter.present(
+                notificationService: notificationService,
+                alert: alertData,
                 title: title,
                 message: body,
-                type: NotificationType.error,
-                duration: const Duration(seconds: 10),
-              )
-            );
-          }
+              );
+            } catch (error) {
+              debugPrint('No se pudo presentar la alerta de fauna: $error');
+            }
+          },
         );
 
         // Enviar ubicación actual al backend para que pueda notificarnos
@@ -105,7 +110,10 @@ class _LoginPageState extends State<LoginPage>
             desiredAccuracy: LocationAccuracy.high,
             timeLimit: const Duration(seconds: 10),
           );
-          await AlertaService().updateLocation(position.latitude, position.longitude);
+          await AlertaService().updateLocation(
+            position.latitude,
+            position.longitude,
+          );
           print('📍 Ubicación enviada al iniciar sesión');
         } catch (e) {
           print('⚠️ No se pudo enviar ubicación al login: $e');

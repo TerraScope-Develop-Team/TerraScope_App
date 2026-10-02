@@ -9,6 +9,8 @@ class AppNotification {
   final String message;
   final NotificationType type;
   final Duration duration;
+  // Datos adicionales opcionales (ej: para alertas de peligro)
+  final Map<String, dynamic>? extra;
 
   AppNotification({
     required this.id,
@@ -16,13 +18,35 @@ class AppNotification {
     required this.message,
     this.type = NotificationType.info,
     this.duration = const Duration(seconds: 4),
+    this.extra,
   });
 }
 
 class NotificationService with ChangeNotifier {
   final List<AppNotification> _notifications = [];
+  final Set<String> _unreadDangerousAlertIds = {};
 
   List<AppNotification> get notifications => List.unmodifiable(_notifications);
+  int get unreadDangerousAlertCount => _unreadDangerousAlertIds.length;
+
+  void setUnreadDangerousAlerts(Iterable<String> alertIds) {
+    _unreadDangerousAlertIds
+      ..clear()
+      ..addAll(alertIds);
+    notifyListeners();
+  }
+
+  void registerUnreadDangerousAlert(String alertId) {
+    if (_unreadDangerousAlertIds.add(alertId)) {
+      notifyListeners();
+    }
+  }
+
+  void markDangerousAlertRead(String alertId) {
+    if (_unreadDangerousAlertIds.remove(alertId)) {
+      notifyListeners();
+    }
+  }
 
   void showNotification(AppNotification notification) {
     _notifications.add(notification);

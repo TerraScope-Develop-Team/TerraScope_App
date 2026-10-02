@@ -12,6 +12,9 @@ import 'package:terrascope/services/notification_service.dart';
 import 'package:terrascope/components/notification_banner.dart';
 import 'components/map/map_page.dart';
 
+// Navigator key global para poder navegar desde cualquier contexto (ej: NotificationBanner)
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() {
   runApp(
     MultiProvider(
@@ -56,6 +59,7 @@ class _MyAppState extends State<MyApp> {
     final themeProvider = context.watch<ThemeProvider>();
 
     return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'TerraScope',
 

@@ -5,9 +5,12 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/avistamiento_model.dart';
 import '../models/zona_frecuente.dart';
 import '../../services/avistamiento_service.dart';
+import '../../services/alerta_service.dart';
+import '../ui/slide_to_confirm.dart';
 import 'avistamiento_detail_card.dart';
 import 'avistamiento_detail_page.dart';
 import '../screens/pagina_inicio.dart';
@@ -601,21 +604,88 @@ class _MapPageState extends State<MapPage> {
         backgroundColor: secondaryColor,
         selectedItemColor: primaryColor,
         unselectedItemColor: Colors.grey,
-        currentIndex: _currentIndex,
+        currentIndex: _currentIndex > 1 ? 0 : _currentIndex,
         onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-
           if (index == 0) {
-            // Navega a home
             Navigator.pushReplacementNamed(context, '/home');
+          } else if (index == 1) {
+            // SOS
+            showModalBottomSheet(
+              context: context,
+              backgroundColor: Colors.transparent,
+              builder: (context) => Container(
+                padding: const EdgeInsets.all(24),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 48),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Emergencia SOS',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Esto enviará tu ubicación a las autoridades y te conectará con el 911 de inmediato.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.black87, height: 1.4, fontSize: 16),
+                    ),
+                    const SizedBox(height: 32),
+                    SlideToConfirm(
+                      baseColor: Colors.red.shade700,
+                      onConfirm: () async {
+                        Navigator.pop(context);
+                        double lat = _currentPosition?.latitude ?? 0.0;
+                        double lng = _currentPosition?.longitude ?? 0.0;
+                        try {
+                          if (lat == 0.0) {
+                            final position = await Geolocator.getCurrentPosition(
+                              desiredAccuracy: LocationAccuracy.high,
+                              timeLimit: const Duration(seconds: 10),
+                            );
+                            lat = position.latitude;
+                            lng = position.longitude;
+                          }
+                          final alertaService = AlertaService();
+                          await alertaService.sendSOS(lat, lng);
+                        } catch (e) {
+                          // continúa con llamada aunque falle el envío
+                        }
+                        final Uri url = Uri(scheme: 'tel', path: '911');
+                        if (await canLaunchUrl(url)) {
+                          await launchUrl(url);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancelar', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          } else if (index == 2) {
+            // Ya estamos en el mapa
+            setState(() { _currentIndex = 2; });
           }
-          // Si es índice 1 (mapa), no hace nada porque ya estamos en MapPage
         },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.map), label: ''),
+        items: [
+          const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.emergency, color: Colors.red),
+            label: 'SOS',
+          ),
+          const BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Mapa'),
         ],
       ),
     );
