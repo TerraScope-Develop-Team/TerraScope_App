@@ -32,8 +32,9 @@ class FaunaFloraService {
 
   /// 🔹 Votar por un avistamiento (comunidad)
   Future<void> votarAvistamiento(
-    String idAvistamiento,
-  ) async {
+    String idAvistamiento, {
+    String? idUsuario,
+  }) async {
     final url = Uri.parse('$baseUrl/fauna-flora/$idAvistamiento/votar');
 
     try {
@@ -41,6 +42,9 @@ class FaunaFloraService {
       final response = await http.put(
         url,
         headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          if (idUsuario != null && idUsuario.isNotEmpty) 'id_usuario': idUsuario,
+        }),
       );
 
       print("📬 Respuesta voto: [${response.statusCode}] ${response.body}");
@@ -56,8 +60,10 @@ class FaunaFloraService {
 
   /// 🔹 Validar avistamiento como experto
   Future<void> validarComoExperto(
-    String idAvistamiento,
-  ) async {
+    String idAvistamiento, {
+    String? idUsuario,
+    String? rol,
+  }) async {
     final url = Uri.parse(
       '$baseUrl/fauna-flora/$idAvistamiento/validar-experto',
     );
@@ -67,6 +73,10 @@ class FaunaFloraService {
       final response = await http.put(
         url,
         headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          if (idUsuario != null && idUsuario.isNotEmpty) 'id_usuario': idUsuario,
+          if (rol != null && rol.isNotEmpty) 'rol': rol,
+        }),
       );
 
       print(
@@ -354,6 +364,77 @@ class FaunaFloraService {
         throw Exception(
           'Error al obtener avistamientos del usuario: ${response.statusCode}',
         );
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Alternar Like en un avistamiento (POST /fauna-flora/:id/like)
+  Future<Map<String, dynamic>> toggleLike(String avistamientoId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/fauna-flora/$avistamientoId/like'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      } else {
+        throw Exception('Error al alternar like: ${response.statusCode}');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Obtener el feed de usuarios seguidos (GET /fauna-flora/feed)
+  Future<List<Avistamiento>> getFeed() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/fauna-flora/feed'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        List<dynamic> dataList = [];
+        if (responseData is Map && responseData.containsKey('feed')) {
+          dataList = responseData['feed'];
+        } else if (responseData is List) {
+          dataList = responseData;
+        }
+
+        return dataList
+            .map((json) => Avistamiento.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } else {
+        throw Exception('Error al obtener feed: ${response.statusCode}');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Eliminar comentario con moderación (DELETE /fauna-flora/:id/comentarios/:comentarioId)
+  Future<bool> deleteComentario(
+    String avistamientoId,
+    String comentarioId,
+  ) async {
+    try {
+      final response = await http.delete(
+        Uri.parse(
+          '$baseUrl/fauna-flora/$avistamientoId/comentarios/$comentarioId',
+        ),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return true;
+      } else if (response.statusCode == 403) {
+        throw Exception('No tienes permisos para eliminar este comentario');
+      } else {
+        throw Exception('Error al eliminar comentario: ${response.statusCode}');
       }
     } catch (e) {
       rethrow;
