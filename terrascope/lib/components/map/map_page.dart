@@ -609,10 +609,7 @@ class _MapPageState extends State<MapPage> {
 
           if (index == 0) {
             // Navega a home
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const HomePage()),
-            );
+            Navigator.pushReplacementNamed(context, '/home');
           }
           // Si es índice 1 (mapa), no hace nada porque ya estamos en MapPage
         },

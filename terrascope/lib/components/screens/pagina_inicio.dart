@@ -12,6 +12,11 @@ import '../../services/session_service.dart';
 import '../../providers/retos_observer_provider.dart';
 import '../../services/notification_service.dart';
 import '../../services/theme_service.dart';
+import '../../services/routing_service.dart';
+import '../../services/alerta_service.dart';
+import '../../services/socket_service.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -36,6 +41,7 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _service = FaunaFloraService(baseUrl: ApiConfig.baseUrl);
     _cargarAvistamientos();
+    // Asegurar conexión al WebSocket (se hace en addPostFrameCallback)
     // Ensure notification service is set and then update retos and notifications
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<RetosObserverProvider>(
@@ -47,8 +53,67 @@ class _HomePageState extends State<HomePage> {
         listen: false,
       );
       provider.setNotificationService(notificationService);
+      
+      SocketService().initSocket(
+        onAlert: (title, body) {
+          notificationService.showNotification(
+            AppNotification(
+              id: 'alerta_peligro_${DateTime.now().millisecondsSinceEpoch}',
+              title: title,
+              message: body,
+              type: NotificationType.error,
+              duration: const Duration(seconds: 10),
+            )
+          );
+        }
+      );
+
       _actualizarRetosYNotificaciones();
+      _checkNearbyAlerts(notificationService);
     });
+  }
+
+  Future<void> _checkNearbyAlerts(NotificationService notificationService) async {
+    try {
+      final userData = await _sessionService.getUserData();
+      final recibirAlertas = userData?['recibir_alertas_peligro'] ?? true;
+      if (!recibirAlertas) return;
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) return;
+      }
+
+      Position? position = await Geolocator.getLastKnownPosition();
+      if (position == null) {
+        position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.low,
+          timeLimit: const Duration(seconds: 3),
+        );
+      }
+
+      final alertas = await AlertaService().getNearbyDangerousAlerts(
+        position.latitude, 
+        position.longitude
+      );
+
+      if (alertas.isNotEmpty) {
+        // Mostramos notificación de que hay animales peligrosos en el área
+        final count = alertas.length;
+        notificationService.showNotification(
+          AppNotification(
+            id: 'alerta_peligro_cercana_${DateTime.now().millisecondsSinceEpoch}',
+            title: '¡Precaución! Zona de riesgo',
+            message: 'Hay $count especie(s) peligrosa(s) reportada(s) cerca de ti recientemente.',
+            type: NotificationType.error,
+            duration: const Duration(seconds: 15),
+          )
+        );
+      }
+    } catch (e) {
+      print('Error al buscar alertas cercanas: $e');
+    }
   }
 
   Future<void> _actualizarRetosYNotificaciones() async {
@@ -196,8 +261,59 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFFE0E0E0)),
+          ? ListView.builder(
+              itemCount: 3,
+              padding: const EdgeInsets.all(16),
+              itemBuilder: (context, index) {
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 0,
+                  color: Colors.grey.withOpacity(0.1),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 40, 
+                              height: 40, 
+                              decoration: BoxDecoration(
+                                color: Colors.grey.withOpacity(0.2), 
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(width: 120, height: 14, color: Colors.grey.withOpacity(0.2)),
+                                const SizedBox(height: 6),
+                                Container(width: 80, height: 10, color: Colors.grey.withOpacity(0.2)),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          width: double.infinity, 
+                          height: 200, 
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withOpacity(0.2), 
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Container(width: 200, height: 16, color: Colors.grey.withOpacity(0.2)),
+                      ],
+                    ),
+                  ),
+                );
+              },
             )
           : _error != null
           ? Center(
@@ -291,7 +407,106 @@ class _HomePageState extends State<HomePage> {
                 ),
               ],
             ),
-      bottomNavigationBar: BottomNavigationBar(
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.red.withOpacity(0.4),
+              blurRadius: 16,
+              spreadRadius: 2,
+              offset: const Offset(0, 4),
+            )
+          ],
+          borderRadius: BorderRadius.circular(30),
+        ),
+        child: FloatingActionButton.extended(
+          backgroundColor: Colors.red.shade700,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          onPressed: () async {
+            // Confirmar con el usuario
+            final confirm = await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: const Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+                    SizedBox(width: 10),
+                    Text('Emergencia SOS', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                content: const Text(
+                  '¿Estás seguro de que deseas enviar una alerta SOS?\n\n'
+                  'Esto enviará tu ubicación a las autoridades y te conectará con el 911.',
+                  style: TextStyle(height: 1.4),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancelar', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade700,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      elevation: 0,
+                    ),
+                    child: const Text('ENVIAR SOS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            );
+
+          if (confirm != true) return;
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Obteniendo ubicación...'), duration: Duration(seconds: 2)),
+          );
+
+          // Obtener ubicación
+          double lat = 0.0;
+          double lng = 0.0;
+          try {
+            Position position = await Geolocator.getCurrentPosition(
+              desiredAccuracy: LocationAccuracy.high,
+              timeLimit: const Duration(seconds: 10),
+            );
+            lat = position.latitude;
+            lng = position.longitude;
+            
+            // Enviar al backend
+            final alertaService = AlertaService();
+            await alertaService.sendSOS(lat, lng);
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No se pudo enviar ubicación al servidor, llamando al 911...')),
+            );
+          }
+
+          // Llamar al 911
+          final Uri url = Uri(scheme: 'tel', path: '911');
+          if (await canLaunchUrl(url)) {
+            await launchUrl(url);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No se pudo abrir la aplicación de llamadas.')),
+            );
+          }
+        },
+        icon: const Icon(Icons.emergency, color: Colors.white, size: 26),
+        label: const Text(
+          'SOS', 
+          style: TextStyle(
+            fontWeight: FontWeight.bold, 
+            fontSize: 16, 
+            letterSpacing: 1.2
+          )
+        ),
+      ),
+    ),
+    bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFFE0E0E0),
         selectedItemColor: const Color(0xFF5C6445),
         unselectedItemColor: Colors.grey,
@@ -302,15 +517,7 @@ class _HomePageState extends State<HomePage> {
           });
 
           if (index == 1) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const MapPage()),
-            );
-            Future.delayed(const Duration(milliseconds: 500), () {
-              setState(() {
-                _currentIndex = 0;
-              });
-            });
+            Navigator.pushReplacementNamed(context, '/map');
           }
         },
         items: const [

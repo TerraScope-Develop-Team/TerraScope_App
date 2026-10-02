@@ -1,6 +1,11 @@
+import 'package:provider/provider.dart';
+import 'package:terrascope/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:terrascope/services/auth_service.dart';
 import 'package:terrascope/services/session_service.dart';
+import 'package:terrascope/services/socket_service.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:terrascope/services/alerta_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -77,6 +82,34 @@ class _LoginPageState extends State<LoginPage>
       if (sessionSaved) {
         print('✅ Sesión guardada correctamente');
         print('👤 Usuario: ${user['nombre_usuario']}');
+
+        // Conectar al WebSocket para recibir alertas en tiempo real
+        final notificationService = Provider.of<NotificationService>(context, listen: false);
+        await SocketService().initSocket(
+          onAlert: (title, body) {
+            notificationService.showNotification(
+              AppNotification(
+                id: 'alerta_peligro_${DateTime.now().millisecondsSinceEpoch}',
+                title: title,
+                message: body,
+                type: NotificationType.error,
+                duration: const Duration(seconds: 10),
+              )
+            );
+          }
+        );
+
+        // Enviar ubicación actual al backend para que pueda notificarnos
+        try {
+          Position position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.high,
+            timeLimit: const Duration(seconds: 10),
+          );
+          await AlertaService().updateLocation(position.latitude, position.longitude);
+          print('📍 Ubicación enviada al iniciar sesión');
+        } catch (e) {
+          print('⚠️ No se pudo enviar ubicación al login: $e');
+        }
 
         Navigator.pushReplacementNamed(context, '/home');
 

@@ -18,6 +18,7 @@ class Avistamiento {
   final List<Comentario> comentarios;
   final String tipo;
   final String nombreUsuario;
+  final bool esPeligrosa;
   final Validacion validacion;
 
   Avistamiento({
@@ -36,6 +37,7 @@ class Avistamiento {
     required this.comentarios,
     required this.tipo,
     required this.nombreUsuario,
+    this.esPeligrosa = false,
     Validacion? validacion,
   }) : validacion = validacion ?? Validacion();
 
@@ -50,6 +52,7 @@ class Avistamiento {
       imagen: json['imagen'] ?? '',
       tipo: json['tipo'] ?? '',
       nombreUsuario: json['nombre_usuario'] ?? '',
+      esPeligrosa: json['es_peligrosa'] ?? false,
       ubicacion: Ubicacion.fromJson(json['ubicacion'] ?? {}),
       comportamiento: json['comportamiento'] ?? '',
       estadoExtincion: json['estado_extincion'] ?? '',
@@ -74,6 +77,7 @@ class Avistamiento {
       'imagen': imagen,
       'tipo': tipo,
       'nombre_usuario': nombreUsuario,
+      'es_peligrosa': esPeligrosa,
       'ubicacion': ubicacion.toJson(),
       'comportamiento': comportamiento,
       'estado_extincion': estadoExtincion,
