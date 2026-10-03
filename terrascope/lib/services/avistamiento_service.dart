@@ -5,13 +5,25 @@ import '../components/models/avistamiento_model.dart';
 import '../config/api_config.dart';
 
 class AvistamientoService {
-  static Future<List<Avistamiento>> getAvistamientos({String? especie}) async {
-    String url = '${ApiConfig.baseUrl}/fauna-flora';
-    if (especie != null) {
-      url += '?categoria=$especie';
+  static Future<List<Avistamiento>> getAvistamientos({
+    String? especie,
+    String? busqueda,
+    String? cursor,
+    int limit = 100,
+  }) async {
+    final queryParameters = <String, String>{'limit': '$limit'};
+    if (especie != null) queryParameters['categoria'] = especie;
+    if (busqueda != null && busqueda.trim().isNotEmpty) {
+      queryParameters['buscar'] = busqueda.trim();
+    }
+    if (cursor != null && cursor.isNotEmpty) {
+      queryParameters['cursor'] = cursor;
     }
 
-    final response = await http.get(Uri.parse(url));
+    final url = Uri.parse(
+      '${ApiConfig.baseUrl}/fauna-flora',
+    ).replace(queryParameters: queryParameters);
+    final response = await http.get(url);
 
     if (response.statusCode == 200) {
       List<dynamic> data = json.decode(response.body);
@@ -62,16 +74,6 @@ class AvistamientoService {
   }
 
   static Future<List<Avistamiento>> searchAvistamientos(String query) async {
-    final avistamientos = await getAvistamientos();
-
-    return avistamientos.where((avistamiento) {
-      return avistamiento.nombreComun.toLowerCase().contains(
-            query.toLowerCase(),
-          ) ||
-          avistamiento.nombreCientifico.toLowerCase().contains(
-            query.toLowerCase(),
-          ) ||
-          avistamiento.especie.toLowerCase().contains(query.toLowerCase());
-    }).toList();
+    return getAvistamientos(busqueda: query);
   }
 }
