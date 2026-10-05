@@ -12,7 +12,7 @@ class SessionService {
   Future<bool> saveSession(Map<String, dynamic> userData) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // Si el objeto contiene el token, guardarlo seguro y extraerlo de los datos generales
       if (userData.containsKey('token')) {
         await _secureStorage.write(key: _keyToken, value: userData['token']);
@@ -59,10 +59,12 @@ class SessionService {
     final userData = await getUserData();
     return userData?['nombre_usuario'] as String?;
   }
-Future<String?> getUserId() async {
-  final userData = await getUserData();
-  return userData?['_id'] as String?;
-}
+
+  Future<String?> getUserId() async {
+    final userData = await getUserData();
+    return userData?['_id'] as String?;
+  }
+
   /// Obtener solo el email del usuario
   Future<String?> getUserEmail() async {
     final userData = await getUserData();
@@ -76,6 +78,25 @@ Future<String?> getUserId() async {
       return prefs.getBool(_keyIsLoggedIn) ?? false;
     } catch (e) {
       print('Error al verificar sesión: $e');
+      return false;
+    }
+  }
+
+  /// Comprueba si hay datos locales suficientes para restaurar la sesión.
+  Future<bool> hasSavedSession() async {
+    try {
+      if (!await isLoggedIn()) return false;
+
+      final token = await getToken();
+      final userData = await getUserData();
+      final userId = userData?['_id'] ?? userData?['id'];
+
+      return token != null &&
+          token.isNotEmpty &&
+          userId != null &&
+          userId.toString().isNotEmpty;
+    } catch (error) {
+      print('Error al restaurar la sesión: $error');
       return false;
     }
   }
