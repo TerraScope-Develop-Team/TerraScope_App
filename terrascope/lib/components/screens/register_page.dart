@@ -81,10 +81,7 @@ class _RegisterPageState extends State<RegisterPage>
       "fecha_nac_usuario": fechaController.text.isNotEmpty
           ? fechaController.text
           : null,
-      "rol": {
-        "nombre_rol": rolSeleccionado,
-        "id_rol": "000000000000000000000000",
-      },
+      "rol": rolSeleccionado,
       "imagen_perfil": imagenBase64 ?? "",
     };
 

@@ -68,11 +68,7 @@ class RetosObserverProvider with ChangeNotifier {
   // Inscribirse a un reto
   Future<bool> inscribirseReto(String retoId) async {
     try {
-      final userData = await _sessionService.getUserData();
-      if (userData == null) return false;
-
-      final usuarioId = userData['_id'];
-      final success = await _retosService.inscribirseReto(retoId, usuarioId);
+      final success = await _retosService.inscribirseReto(retoId);
 
       if (success) {
         await cargarRetosActivos();

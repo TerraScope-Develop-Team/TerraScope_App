@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:terrascope/services/api_client.dart' as http;
+import '../config/auth_http.dart' as http;
 import 'package:terrascope/config/api_config.dart';
 
 class AuthService {
@@ -9,7 +9,7 @@ class AuthService {
   Future<Map<String, dynamic>?> login(String email, String password) async {
     try {
       final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/auth/login'),
+        Uri.parse('$baseUrl/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email_usuario': email,
@@ -18,27 +18,13 @@ class AuthService {
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body) as Map<String, dynamic>;
-        final usuario = data['usuario'] as Map<String, dynamic>?;
-        final token = data['token'] as String?;
-
-        if (usuario == null || token == null || token.isEmpty) {
-          print('Respuesta de autenticación incompleta');
-          return null;
-        }
-
-        return {
-          'token': token,
-          '_id': usuario['id'] ?? usuario['_id'],
-          'nombre_usuario': usuario['nombre_usuario'],
-          'email_usuario': usuario['email_usuario'],
-          'rol_usuario': usuario['rol']?['nombre_rol'] ?? 'Usuario',
-          'rol': usuario['rol'],
-        };
+        final userData = json.decode(response.body);
+        print('✅ Usuario autenticado: $userData');
+        return userData;
+      } else {
+        print('⚠️ Usuario no encontrado o credenciales inválidas. Status: ${response.statusCode}');
+        return null;
       }
-
-      print('Error de autenticación: ${response.statusCode}');
-      return null;
     } catch (e) {
       print('⚠️ Error al iniciar sesión: $e');
       return null;
@@ -151,6 +137,82 @@ class AuthService {
     } catch (e) {
       print('Error al quitar título: $e');
       return false;
+    }
+  }
+
+  /// Seguir usuario (POST /usuarios/:id/seguir)
+  Future<Map<String, dynamic>?> seguirUsuario(String targetUserId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/$targetUserId/seguir'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      print('Error al seguir usuario (${response.statusCode}): ${response.body}');
+      return null;
+    } catch (e) {
+      print('Error al seguir usuario: $e');
+      return null;
+    }
+  }
+
+  /// Dejar de seguir usuario (POST /usuarios/:id/dejar-seguir)
+  Future<Map<String, dynamic>?> dejarDeSeguirUsuario(String targetUserId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/$targetUserId/dejar-seguir'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      print('Error al dejar de seguir usuario (${response.statusCode}): ${response.body}');
+      return null;
+    } catch (e) {
+      print('Error al dejar de seguir usuario: $e');
+      return null;
+    }
+  }
+
+  /// Obtener seguidores (GET /usuarios/:id/seguidores)
+  Future<List<dynamic>> obtenerSeguidores(String userId) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/$userId/seguidores'));
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        if (decoded is Map && decoded.containsKey('seguidores')) {
+          return decoded['seguidores'];
+        } else if (decoded is List) {
+          return decoded;
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Error al obtener seguidores: $e');
+      return [];
+    }
+  }
+
+  /// Obtener seguidos (GET /usuarios/:id/seguidos)
+  Future<List<dynamic>> obtenerSeguidos(String userId) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/$userId/seguidos'));
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        if (decoded is Map && decoded.containsKey('seguidos')) {
+          return decoded['seguidos'];
+        } else if (decoded is List) {
+          return decoded;
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Error al obtener seguidos: $e');
+      return [];
     }
   }
 }

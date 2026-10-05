@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "814811927025",
+    "project_id": "terrascope-5a5d4",
+    "storage_bucket": "terrascope-5a5d4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:814811927025:android:5c336f780f86dc13bd3450",
+        "android_client_info": {
+          "package_name": "com.example.terrascope"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-j8KnbqU1t1pig78f-WYN8kCt2gb0z1A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

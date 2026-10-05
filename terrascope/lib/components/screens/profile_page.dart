@@ -9,7 +9,10 @@ import 'package:terrascope/services/theme_service.dart';
 import 'package:terrascope/components/screens/edit_page.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final String? userId;
+  final String? nombreUsuario;
+
+  const ProfileScreen({super.key, this.userId, this.nombreUsuario});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -25,6 +28,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = true;
   bool _isLoadingRetos = false;
   String? _error;
+
+  bool _isOwnProfile = true;
+  bool _isFollowing = false;
+  bool _isTogglingFollow = false;
+  int _totalSeguidores = 0;
+  int _totalSeguidos = 0;
+  String? _targetUserId;
 
   @override
   void initState() {
@@ -53,9 +63,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
 
       final sessionData = await _sessionService.getUserData();
-      final userId = sessionData?['_id'];
+      final currentSessionUserId = sessionData?['_id'] ?? sessionData?['id'];
+      _targetUserId = widget.userId ?? currentSessionUserId;
+      _isOwnProfile = widget.userId == null || widget.userId == currentSessionUserId;
 
-      if (userId == null) {
+      if (_targetUserId == null) {
         setState(() {
           _error = 'No se encontró la sesión del usuario';
           _isLoading = false;
@@ -63,11 +75,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
 
-      final userData = await _authService.obtenerUsuarioPorId(userId);
+      final userData = await _authService.obtenerUsuarioPorId(_targetUserId!);
 
       if (userData != null) {
+        final seguidoresCount = userData['total_seguidores'] is num
+            ? (userData['total_seguidores'] as num).toInt()
+            : ((userData['seguidores'] as List?)?.length ?? 0);
+        final seguidosCount = userData['total_seguidos'] is num
+            ? (userData['total_seguidos'] as num).toInt()
+            : ((userData['seguidos'] as List?)?.length ?? 0);
+
         setState(() {
           _userData = userData;
+          _totalSeguidores = seguidoresCount;
+          _totalSeguidos = seguidosCount;
+          _isFollowing = userData['is_following'] == true;
           _isLoading = false;
         });
 
@@ -127,13 +149,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mi Perfil'),
+        title: Text(
+          _isOwnProfile
+              ? 'Mi Perfil'
+              : '@${_userData?['nombre_usuario'] ?? widget.nombreUsuario ?? 'Perfil'}',
+        ),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: _userData != null ? _navigateToEdit : null,
-          ),
+          if (_isOwnProfile)
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: _userData != null ? _navigateToEdit : null,
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadUserProfile,
@@ -182,16 +209,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _buildProfileHeader(),
             const SizedBox(height: 24),
             _buildInfoSection(),
-            const SizedBox(height: 24),
-            _buildThemeSection(),
+            if (_isOwnProfile) ...[
+              const SizedBox(height: 24),
+              _buildThemeSection(),
+            ],
             const SizedBox(height: 24),
             _buildHistorialSection(),
             const SizedBox(height: 24),
             _buildLogrosSection(),
             const SizedBox(height: 24),
             _buildRetosActivosSection(),
-            const SizedBox(height: 32),
-            _buildLogoutButton(),
+            if (_isOwnProfile) ...[
+              const SizedBox(height: 32),
+              _buildLogoutButton(),
+            ],
           ],
         ),
       ),
@@ -214,7 +245,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildProfileHeader() {
     final imagenPerfil = _userData?['imagen_perfil'];
     final nombre = _userData?['nombre_usuario'] ?? 'Usuario';
-    final rol = _userData?['rol']?['nombre_rol'] ?? 'Usuario';
+    final rol = _userData?['rol'] ?? 'Usuario';
     final tituloActivo = _userData?['titulo_activo'];
     final imageProvider = _getImageProvider(imagenPerfil);
 
@@ -287,8 +318,238 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ],
+
+          const SizedBox(height: 18),
+
+          // 🔹 Métricas sociales: Seguidores y Seguidos
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              InkWell(
+                onTap: () => _mostrarListaUsuarios(
+                  'Seguidores',
+                  _authService.obtenerSeguidores(_targetUserId!),
+                ),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Column(
+                    children: [
+                      Text(
+                        '$_totalSeguidores',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Seguidores',
+                        style: TextStyle(fontSize: 13, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Container(height: 36, width: 1, color: Colors.grey[300]),
+              InkWell(
+                onTap: () => _mostrarListaUsuarios(
+                  'Siguiendo',
+                  _authService.obtenerSeguidos(_targetUserId!),
+                ),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Column(
+                    children: [
+                      Text(
+                        '$_totalSeguidos',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Siguiendo',
+                        style: TextStyle(fontSize: 13, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // 🔹 Botón Seguir / Dejar de seguir si es perfil ajeno
+          if (!_isOwnProfile) ...[
+            const SizedBox(height: 14),
+            ElevatedButton.icon(
+              onPressed: _isTogglingFollow ? null : _toggleSeguir,
+              icon: Icon(
+                _isFollowing ? Icons.person_remove : Icons.person_add,
+                size: 18,
+              ),
+              label: Text(_isFollowing ? 'Dejar de seguir' : 'Seguir'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _isFollowing
+                    ? Colors.grey[300]
+                    : const Color(0xFF5C6445),
+                foregroundColor: _isFollowing ? Colors.black87 : Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  Future<void> _toggleSeguir() async {
+    if (_isTogglingFollow || _targetUserId == null) return;
+    setState(() => _isTogglingFollow = true);
+    try {
+      if (_isFollowing) {
+        final res = await _authService.dejarDeSeguirUsuario(_targetUserId!);
+        if (res != null) {
+          setState(() {
+            _isFollowing = false;
+            _totalSeguidores = (_totalSeguidores - 1).clamp(0, 999999);
+          });
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No se pudo dejar de seguir al usuario')),
+          );
+        }
+      } else {
+        final res = await _authService.seguirUsuario(_targetUserId!);
+        if (res != null) {
+          setState(() {
+            _isFollowing = true;
+            _totalSeguidores += 1;
+          });
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No se pudo seguir al usuario')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al procesar seguimiento: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isTogglingFollow = false);
+    }
+  }
+
+  void _mostrarListaUsuarios(String titulo, Future<List<dynamic>> futureUsuarios) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.6,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                titulo,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Divider(),
+              Expanded(
+                child: FutureBuilder<List<dynamic>>(
+                  future: futureUsuarios,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
+                    final usuarios = snapshot.data ?? [];
+                    if (usuarios.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No hay $titulo todavía',
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                      );
+                    }
+                    return ListView.builder(
+                      itemCount: usuarios.length,
+                      itemBuilder: (context, index) {
+                        final u = usuarios[index] is Map<String, dynamic>
+                            ? usuarios[index]
+                            : {};
+                        final uId = u['_id'] ?? u['id'] ?? '';
+                        final uNombre = u['nombre_usuario'] ?? 'Usuario';
+                        final uRol = u['rol'] ?? 'Usuario';
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: const Color(0xFF5C6445),
+                            child: Text(
+                              uNombre.isNotEmpty
+                                  ? uNombre[0].toUpperCase()
+                                  : 'U',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ),
+                          title: Text(uNombre, style: const TextStyle(fontWeight: FontWeight.w600)),
+                          subtitle: Text(uRol, style: const TextStyle(fontSize: 12)),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () {
+                            Navigator.pop(context);
+                            if (uId.isNotEmpty && uId != _targetUserId) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ProfileScreen(
+                                    userId: uId,
+                                    nombreUsuario: uNombre,
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

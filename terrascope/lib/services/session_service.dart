@@ -1,36 +1,30 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 
 class SessionService {
   static const String _keyUserData = 'user_data';
   static const String _keyIsLoggedIn = 'is_logged_in';
-  static const String _keyToken = 'auth_token';
+  final _secureStorage = const FlutterSecureStorage();
+  static const String _keyToken = 'jwt_token';
 
   /// Guardar sesión del usuario
   Future<bool> saveSession(Map<String, dynamic> userData) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_keyUserData, json.encode(userData));
-      final token = userData['token'] as String?;
-      if (token == null || token.isEmpty) {
-        return false;
+
+      // Si el objeto contiene el token, guardarlo seguro y extraerlo de los datos generales
+      if (userData.containsKey('token')) {
+        await _secureStorage.write(key: _keyToken, value: userData['token']);
+        userData.remove('token');
       }
-      await prefs.setString(_keyToken, token);
+
+      await prefs.setString(_keyUserData, json.encode(userData));
       await prefs.setBool(_keyIsLoggedIn, true);
       return true;
     } catch (e) {
       print('Error al guardar sesión: $e');
       return false;
-    }
-  }
-
-  Future<String?> getToken() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(_keyToken);
-    } catch (e) {
-      print('Error al obtener el token: $e');
-      return null;
     }
   }
 
@@ -50,15 +44,27 @@ class SessionService {
     }
   }
 
+  /// Obtener el token JWT
+  Future<String?> getToken() async {
+    try {
+      return await _secureStorage.read(key: _keyToken);
+    } catch (e) {
+      print('Error al obtener token: $e');
+      return null;
+    }
+  }
+
   /// Obtener solo el nombre del usuario
   Future<String?> getUserName() async {
     final userData = await getUserData();
     return userData?['nombre_usuario'] as String?;
   }
-Future<String?> getUserId() async {
-  final userData = await getUserData();
-  return userData?['_id'] as String?;
-}
+
+  Future<String?> getUserId() async {
+    final userData = await getUserData();
+    return userData?['_id'] as String?;
+  }
+
   /// Obtener solo el email del usuario
   Future<String?> getUserEmail() async {
     final userData = await getUserData();
@@ -76,13 +82,32 @@ Future<String?> getUserId() async {
     }
   }
 
+  /// Comprueba si hay datos locales suficientes para restaurar la sesión.
+  Future<bool> hasSavedSession() async {
+    try {
+      if (!await isLoggedIn()) return false;
+
+      final token = await getToken();
+      final userData = await getUserData();
+      final userId = userData?['_id'] ?? userData?['id'];
+
+      return token != null &&
+          token.isNotEmpty &&
+          userId != null &&
+          userId.toString().isNotEmpty;
+    } catch (error) {
+      print('Error al restaurar la sesión: $error');
+      return false;
+    }
+  }
+
   /// Cerrar sesión
   Future<bool> logout() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_keyUserData);
-      await prefs.remove(_keyToken);
       await prefs.setBool(_keyIsLoggedIn, false);
+      await _secureStorage.delete(key: _keyToken);
       return true;
     } catch (e) {
       print('Error al cerrar sesión: $e');

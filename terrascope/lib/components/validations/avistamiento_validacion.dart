@@ -64,7 +64,7 @@ class AvistamientoValidacionProvider with ChangeNotifier {
         "📤 Enviando voto de usuario $idUsuario → avistamiento $idAvistamiento",
       );
 
-      await _service.votarAvistamiento(idAvistamiento);
+      await _service.votarAvistamiento(idAvistamiento, idUsuario: idUsuario.toString());
 
       log("✅ Voto enviado correctamente. Recargando lista...");
       await cargarAvistamientos();
@@ -98,7 +98,11 @@ class AvistamientoValidacionProvider with ChangeNotifier {
       final rol = userData['rol'];
       log("📤 Enviando validación como experto → usuario $idUsuario ($rol)");
 
-      await _service.validarComoExperto(idAvistamiento);
+      await _service.validarComoExperto(
+        idAvistamiento,
+        idUsuario: idUsuario.toString(),
+        rol: rol.toString(),
+      );
 
       log("✅ Validación por experto exitosa. Recargando lista...");
       await cargarAvistamientos();

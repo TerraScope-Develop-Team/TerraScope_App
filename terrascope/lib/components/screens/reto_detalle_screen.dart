@@ -5,7 +5,7 @@ import '../models/reto_model.dart';
 import '../../providers/retos_observer_provider.dart';
 import '../../services/session_service.dart';
 import '../../services/retos_service.dart';
-import '../../services/theme_service.dart';
+import '../../services/notification_service.dart';
 
 class RetoDetalleScreen extends StatefulWidget {
   final Reto reto;
@@ -88,6 +88,7 @@ class _RetoDetalleScreenState extends State<RetoDetalleScreen>
     setState(() => _isLoading = true);
     final provider = Provider.of<RetosObserverProvider>(context, listen: false);
     final success = await provider.inscribirseReto(widget.reto.id);
+    if (!mounted) return;
     setState(() => _isLoading = false);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -98,7 +99,14 @@ class _RetoDetalleScreenState extends State<RetoDetalleScreen>
           backgroundColor: success ? _olivaClaro : Colors.red,
         ),
       );
-      if (success) await _cargarDatos();
+      if (success) {
+        await _cargarDatos();
+        if (!mounted) return;
+        await Provider.of<NotificationService>(
+          context,
+          listen: false,
+        ).requestPermissionAfterFirstChallengeAcceptance(context);
+      }
     }
   }
 
@@ -136,10 +144,11 @@ class _RetoDetalleScreenState extends State<RetoDetalleScreen>
         ],
       ),
     );
-    if (confirmar != true) return;
+    if (!mounted || confirmar != true) return;
     setState(() => _isLoading = true);
     final provider = Provider.of<RetosObserverProvider>(context, listen: false);
     final success = await provider.desinscribirseReto(widget.reto.id);
+    if (!mounted) return;
     setState(() => _isLoading = false);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

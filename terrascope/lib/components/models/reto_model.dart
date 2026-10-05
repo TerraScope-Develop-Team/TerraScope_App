@@ -24,8 +24,35 @@ class Reto {
   });
 
   factory Reto.fromJson(Map<String, dynamic> json) {
+    final rawConditions = json['condiciones'];
+    final conditions = <String, int>{};
+
+    void flattenConditions(Map<String, dynamic> values, String prefix) {
+      for (final entry in values.entries) {
+        final key = prefix.isEmpty ? entry.key : '$prefix.${entry.key}';
+        final value = entry.value;
+        if (value is Map) {
+          flattenConditions(Map<String, dynamic>.from(value), key);
+        } else if (value is num) {
+          conditions[key] = value.toInt();
+        } else {
+          throw FormatException(
+            'La condición "$key" debe tener un valor numérico.',
+          );
+        }
+      }
+    }
+
+    if (rawConditions is Map) {
+      flattenConditions(Map<String, dynamic>.from(rawConditions), '');
+    } else if (rawConditions != null) {
+      throw const FormatException(
+        'Las condiciones del reto deben ser un objeto JSON.',
+      );
+    }
+
     return Reto(
-      id: json['_id'] ?? '',
+      id: (json['id'] ?? json['_id'])?.toString() ?? '',
       nombreReto: json['nombre_reto'] ?? '',
       descripcionReto: json['descripcion_reto'] ?? '',
       fechaInicio: json['fecha_inicio'] != null
@@ -34,8 +61,10 @@ class Reto {
       fechaFinal: json['fecha_final'] != null
           ? DateTime.parse(json['fecha_final'])
           : null,
-      condiciones: Map<String, int>.from(json['condiciones'] ?? {}),
-      usuariosInscritos: List<String>.from(json['usuarios_inscritos'] ?? []),
+      condiciones: conditions,
+      usuariosInscritos: (json['usuarios_inscritos'] as List? ?? [])
+          .map((usuarioId) => usuarioId.toString())
+          .toList(),
       usuariosFinalizados:
           (json['usuarios_finalizados'] as List?)
               ?.map((u) => UsuarioFinalizado.fromJson(u))
