@@ -12,6 +12,14 @@ import '../../services/session_service.dart';
 import '../../providers/retos_observer_provider.dart';
 import '../../services/notification_service.dart';
 import '../../services/theme_service.dart';
+import '../../services/routing_service.dart';
+import '../../services/alerta_service.dart';
+import '../../services/socket_service.dart';
+import '../../services/danger_alert_presenter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
+import '../ui/slide_to_confirm.dart';
+import 'notification_center_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -37,6 +45,7 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _service = FaunaFloraService(baseUrl: ApiConfig.baseUrl);
     _cargarAvistamientos();
+    // Asegurar conexión al WebSocket (se hace en addPostFrameCallback)
     // Ensure notification service is set and then update retos and notifications
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<RetosObserverProvider>(
@@ -48,8 +57,118 @@ class _HomePageState extends State<HomePage> {
         listen: false,
       );
       provider.setNotificationService(notificationService);
+
+      SocketService().initSocket(
+        onAlert: (title, body, alertData) async {
+          try {
+            await DangerAlertPresenter.present(
+              notificationService: notificationService,
+              alert: alertData,
+              title: title,
+              message: body,
+            );
+          } catch (error) {
+            debugPrint('No se pudo presentar la alerta de fauna: $error');
+          }
+        },
+      );
+
       _actualizarRetosYNotificaciones();
+      _loadDangerousAlerts(notificationService);
     });
+  }
+
+  Future<void> _loadDangerousAlerts(
+    NotificationService notificationService,
+  ) async {
+    try {
+      final userData = await _sessionService.getUserData();
+      final receiveDangerAlerts = userData?['recibir_alertas_peligro'] ?? true;
+      final alertaService = AlertaService();
+
+      if (receiveDangerAlerts) {
+        try {
+          var permission = await Geolocator.checkPermission();
+          if (permission == LocationPermission.denied) {
+            permission = await Geolocator.requestPermission();
+          }
+
+          if (permission != LocationPermission.denied &&
+              permission != LocationPermission.deniedForever) {
+            var position = await Geolocator.getLastKnownPosition();
+            position ??= await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(
+                accuracy: LocationAccuracy.low,
+                timeLimit: Duration(seconds: 3),
+              ),
+            );
+            await alertaService.getNearbyDangerousAlerts(
+              position.latitude,
+              position.longitude,
+            );
+          }
+        } catch (error) {
+          debugPrint('No se pudieron sincronizar alertas cercanas: $error');
+        }
+      }
+
+      final alerts = await alertaService.getDangerousAlerts();
+      if (!mounted) return;
+
+      notificationService.setUnreadDangerousAlerts(
+        alerts
+            .where((alert) => alert['leida'] != true)
+            .map((alert) => alert['id']?.toString())
+            .whereType<String>(),
+      );
+
+      if (!receiveDangerAlerts) return;
+
+      final now = DateTime.now();
+      for (final alert in alerts) {
+        final createdAt = DateTime.tryParse(
+          alert['createdAt']?.toString() ?? '',
+        )?.toLocal();
+        final isRecent =
+            createdAt != null &&
+            !createdAt.isAfter(now) &&
+            now.difference(createdAt) <= const Duration(hours: 24);
+        if (alert['mostrada'] == true || !isRecent) continue;
+
+        try {
+          await DangerAlertPresenter.present(
+            notificationService: notificationService,
+            alert: alert,
+            title: '¡Precaución! Zona de riesgo',
+            message:
+                'Especie peligrosa detectada cerca: ${alert['especie'] ?? 'Desconocida'}',
+          );
+        } catch (error) {
+          debugPrint('No se pudo presentar la alerta pendiente: $error');
+        }
+        break;
+      }
+    } catch (e) {
+      debugPrint('Error al cargar alertas de fauna: $e');
+    }
+  }
+
+  Future<void> _refreshUnreadAlertCount() async {
+    try {
+      final alerts = await AlertaService().getDangerousAlerts();
+      if (!mounted) return;
+      Provider.of<NotificationService>(
+        context,
+        listen: false,
+      ).setUnreadDangerousAlerts(
+        alerts
+            .where((alert) => alert['leida'] != true)
+            .map((alert) => alert['id']?.toString())
+            .whereType<String>(),
+      );
+    } catch (error) {
+      debugPrint('Error al actualizar el contador de alertas: $error');
+    }
   }
 
   Future<void> _actualizarRetosYNotificaciones() async {
@@ -127,6 +246,9 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
+    final unreadAlertCount = Provider.of<NotificationService>(
+      context,
+    ).unreadDangerousAlertCount;
     final isDark = themeProvider.isDarkMode;
 
     // Theme-aware colors
@@ -162,6 +284,49 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Centro de notificaciones',
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const NotificationCenterScreen(),
+                ),
+              );
+              await _refreshUnreadAlertCount();
+            },
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(Icons.notifications_outlined, color: appBarTextColor),
+                if (unreadAlertCount > 0)
+                  Positioned(
+                    right: -7,
+                    top: -7,
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 17,
+                        minHeight: 17,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        unreadAlertCount > 99 ? '99+' : '$unreadAlertCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
           IconButton(
             icon: Icon(Icons.emoji_events, color: appBarTextColor),
             onPressed: () {
@@ -200,8 +365,71 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFFE0E0E0)),
+          ? ListView.builder(
+              itemCount: 3,
+              padding: const EdgeInsets.all(16),
+              itemBuilder: (context, index) {
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 0,
+                  color: Colors.grey.withOpacity(0.1),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.withOpacity(0.2),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 120,
+                                  height: 14,
+                                  color: Colors.grey.withOpacity(0.2),
+                                ),
+                                const SizedBox(height: 6),
+                                Container(
+                                  width: 80,
+                                  height: 10,
+                                  color: Colors.grey.withOpacity(0.2),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          width: double.infinity,
+                          height: 200,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          width: 200,
+                          height: 16,
+                          color: Colors.grey.withOpacity(0.2),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             )
           : _error != null
           ? Center(
@@ -268,7 +496,9 @@ class _HomePageState extends State<HomePage> {
                               if (_mostrarSoloSeguidos) ...[
                                 const SizedBox(height: 8),
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 32,
+                                  ),
                                   child: Text(
                                     'Sigue a otros exploradores para ver sus publicaciones aquí.',
                                     textAlign: TextAlign.center,
@@ -314,31 +544,105 @@ class _HomePageState extends State<HomePage> {
                 ),
               ],
             ),
+      floatingActionButton: null,
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFFE0E0E0),
         selectedItemColor: const Color(0xFF5C6445),
         unselectedItemColor: Colors.grey,
-        currentIndex: _currentIndex,
+        currentIndex: _currentIndex > 1 ? 1 : _currentIndex,
         onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-
-          if (index == 1) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const MapPage()),
-            );
-            Future.delayed(const Duration(milliseconds: 500), () {
-              setState(() {
-                _currentIndex = 0;
-              });
+          if (index == 0) {
+            setState(() {
+              _currentIndex = 0;
             });
+          } else if (index == 1) {
+            // SOS
+            showModalBottomSheet(
+              context: context,
+              backgroundColor: Colors.transparent,
+              builder: (ctx) => Container(
+                padding: const EdgeInsets.all(24),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.red,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Emergencia SOS',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Esto enviará tu ubicación a las autoridades y te conectará con el 911 de inmediato.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.black87,
+                        height: 1.4,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    SlideToConfirm(
+                      baseColor: Colors.red.shade700,
+                      onConfirm: () async {
+                        Navigator.pop(ctx);
+                        double lat = 0.0;
+                        double lng = 0.0;
+                        try {
+                          Position position =
+                              await Geolocator.getCurrentPosition(
+                                desiredAccuracy: LocationAccuracy.high,
+                                timeLimit: const Duration(seconds: 10),
+                              );
+                          lat = position.latitude;
+                          lng = position.longitude;
+                          final alertaService = AlertaService();
+                          await alertaService.sendSOS(lat, lng);
+                        } catch (e) {
+                          // Continúa con llamada aunque falle envío
+                        }
+                        final Uri url = Uri(scheme: 'tel', path: '911');
+                        if (await canLaunchUrl(url)) await launchUrl(url);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text(
+                        'Cancelar',
+                        style: TextStyle(color: Colors.grey, fontSize: 16),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          } else if (index == 2) {
+            Navigator.pushReplacementNamed(context, '/map');
           }
         },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.map), label: ''),
+        items: [
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Inicio',
+          ),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.emergency, color: Colors.red),
+            label: 'SOS',
+          ),
+          const BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Mapa'),
         ],
       ),
     );
@@ -577,9 +881,9 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
           if (_totalLikes < 0) _totalLikes = 0;
           _isTogglingLike = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al alternar like: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al alternar like: $e')));
       }
     }
   }
@@ -892,14 +1196,20 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
 
           // 🔹 Barra de acciones sociales (Like, Comentarios)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
             child: Row(
               children: [
                 InkWell(
                   onTap: _toggleLike,
                   borderRadius: BorderRadius.circular(20),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: _userHasLiked
                           ? Colors.red.withOpacity(0.1)
@@ -909,7 +1219,9 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
                     child: Row(
                       children: [
                         Icon(
-                          _userHasLiked ? Icons.favorite : Icons.favorite_border,
+                          _userHasLiked
+                              ? Icons.favorite
+                              : Icons.favorite_border,
                           color: _userHasLiked ? Colors.red : primaryTextColor,
                           size: 22,
                         ),
@@ -919,7 +1231,9 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
-                            color: _userHasLiked ? Colors.red : primaryTextColor,
+                            color: _userHasLiked
+                                ? Colors.red
+                                : primaryTextColor,
                           ),
                         ),
                       ],
@@ -931,7 +1245,10 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
                   onTap: widget.onTap,
                   borderRadius: BorderRadius.circular(20),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     child: Row(
                       children: [
                         Icon(

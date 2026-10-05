@@ -6,6 +6,7 @@ import 'package:terrascope/services/auth_service.dart';
 import 'package:terrascope/services/retos_service.dart';
 import 'package:terrascope/services/session_service.dart';
 import 'package:terrascope/services/theme_service.dart';
+import 'package:terrascope/services/alerta_service.dart';
 import 'package:terrascope/components/screens/edit_page.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -654,6 +655,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     color: themeProvider.isDarkMode
                         ? Colors.blue
                         : Colors.orange,
+                  ),
+                ),
+                const Divider(),
+                SwitchListTile(
+                  title: const Text('Alertas de fauna peligrosa'),
+                  subtitle: const Text('Recibir notificaciones cuando haya especies peligrosas cerca'),
+                  value: _userData?['recibir_alertas_peligro'] ?? true,
+                  onChanged: (value) async {
+                    setState(() {
+                      _userData?['recibir_alertas_peligro'] = value;
+                    });
+                    final alertaService = AlertaService();
+                    final success = await alertaService.updateAlertSettings(value);
+                    if (!success) {
+                      setState(() {
+                        _userData?['recibir_alertas_peligro'] = !value;
+                      });
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Error al actualizar configuración')),
+                        );
+                      }
+                    }
+                  },
+                  secondary: Icon(
+                    Icons.warning_amber_rounded,
+                    color: (_userData?['recibir_alertas_peligro'] ?? true)
+                        ? Colors.red
+                        : Colors.grey,
                   ),
                 ),
               ],

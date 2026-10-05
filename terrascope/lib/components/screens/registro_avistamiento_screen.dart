@@ -59,6 +59,7 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
   List<Habitat> _habitats = [];
   Habitat? _selectedHabitat;
   bool _cargando = false;
+  bool _esPeligrosa = false;
   Map<String, dynamic>? _resultadoIA;
 
   final List<String> _comportamientosComunes = [
@@ -1265,6 +1266,7 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
         comentarios: [],
         tipo: _tipo,
         nombreUsuario: nombreUsuario,
+        esPeligrosa: _esPeligrosa,
       );
 
       print('📤 Datos a enviar:');
@@ -1598,6 +1600,64 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
                 ),
               ),
             ],
+            
+            const SizedBox(height: 24),
+            // Toggle de Fauna Peligrosa
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: _esPeligrosa ? Colors.red[50] : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _esPeligrosa ? Colors.red : Colors.grey[300]!,
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: _esPeligrosa ? Colors.red : Colors.grey[600],
+                    size: 28,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '¿Es una especie peligrosa?',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: _esPeligrosa ? Colors.red[900] : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Activa esto si el animal representa un riesgo para las personas cercanas',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: _esPeligrosa,
+                    activeColor: Colors.red,
+                    onChanged: (value) {
+                      setState(() {
+                        _esPeligrosa = value;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
             const SizedBox(height: 16),
 
             const Text(
