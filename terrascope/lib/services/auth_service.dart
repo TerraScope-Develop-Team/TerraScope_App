@@ -139,4 +139,80 @@ class AuthService {
       return false;
     }
   }
+
+  /// Seguir usuario (POST /usuarios/:id/seguir)
+  Future<Map<String, dynamic>?> seguirUsuario(String targetUserId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/$targetUserId/seguir'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      print('Error al seguir usuario (${response.statusCode}): ${response.body}');
+      return null;
+    } catch (e) {
+      print('Error al seguir usuario: $e');
+      return null;
+    }
+  }
+
+  /// Dejar de seguir usuario (POST /usuarios/:id/dejar-seguir)
+  Future<Map<String, dynamic>?> dejarDeSeguirUsuario(String targetUserId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/$targetUserId/dejar-seguir'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      print('Error al dejar de seguir usuario (${response.statusCode}): ${response.body}');
+      return null;
+    } catch (e) {
+      print('Error al dejar de seguir usuario: $e');
+      return null;
+    }
+  }
+
+  /// Obtener seguidores (GET /usuarios/:id/seguidores)
+  Future<List<dynamic>> obtenerSeguidores(String userId) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/$userId/seguidores'));
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        if (decoded is Map && decoded.containsKey('seguidores')) {
+          return decoded['seguidores'];
+        } else if (decoded is List) {
+          return decoded;
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Error al obtener seguidores: $e');
+      return [];
+    }
+  }
+
+  /// Obtener seguidos (GET /usuarios/:id/seguidos)
+  Future<List<dynamic>> obtenerSeguidos(String userId) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/$userId/seguidos'));
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        if (decoded is Map && decoded.containsKey('seguidos')) {
+          return decoded['seguidos'];
+        } else if (decoded is List) {
+          return decoded;
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Error al obtener seguidos: $e');
+      return [];
+    }
+  }
 }

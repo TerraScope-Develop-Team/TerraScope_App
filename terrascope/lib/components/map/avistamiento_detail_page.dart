@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/avistamiento_model.dart';
 import '../models/comentario.dart';
+import '../screens/profile_page.dart';
 import '../../services/avistamiento_service.dart';
 import '../../services/session_service.dart';
 import '../../services/theme_service.dart';
@@ -31,10 +32,65 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
   bool _isSubmitting = false;
   final SessionService _sessionService = SessionService();
 
+  late bool _userHasLiked;
+  late int _totalLikes;
+  bool _isTogglingLike = false;
+  String? _currentUserId;
+  String? _currentUserRol;
+
   @override
   void initState() {
     super.initState();
     _comentarios = List.from(widget.avistamiento.comentarios);
+    _totalLikes = widget.avistamiento.totalLikes;
+    _userHasLiked = widget.avistamiento.userHasLiked;
+    _loadCurrentUser();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    final userData = await _sessionService.getUserData();
+    if (mounted && userData != null) {
+      setState(() {
+        _currentUserId = userData['_id'] ?? userData['id'];
+        _currentUserRol = userData['rol'] ?? 'Usuario';
+        if (_currentUserId != null && widget.avistamiento.likes.isNotEmpty) {
+          _userHasLiked = widget.avistamiento.likes.contains(_currentUserId);
+        }
+      });
+    }
+  }
+
+  Future<void> _toggleLike() async {
+    if (_isTogglingLike) return;
+    setState(() {
+      _isTogglingLike = true;
+      _userHasLiked = !_userHasLiked;
+      _totalLikes += _userHasLiked ? 1 : -1;
+      if (_totalLikes < 0) _totalLikes = 0;
+    });
+
+    try {
+      final res = await AvistamientoService.toggleLike(widget.avistamiento.id);
+      if (mounted) {
+        setState(() {
+          _userHasLiked = res['liked'] == true;
+          _totalLikes = (res['total_likes'] as num).toInt();
+          _isTogglingLike = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _userHasLiked = !_userHasLiked;
+          _totalLikes += _userHasLiked ? 1 : -1;
+          if (_totalLikes < 0) _totalLikes = 0;
+          _isTogglingLike = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al alternar like: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _agregarComentario() async {
@@ -61,19 +117,20 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
         return;
       }
 
-      await AvistamientoService.addComentario(
+      final nuevoComentario = await AvistamientoService.addComentario(
         widget.avistamiento.id,
         _comentarioController.text.trim(),
       );
 
       setState(() {
         _comentarios.add(
-          Comentario(
-            idUsuario: widget.usuarioId,
-            nombreUsuario: nombreUsuario,
-            comentario: _comentarioController.text.trim(),
-            fecha: DateTime.now(),
-          ),
+          nuevoComentario ??
+              Comentario(
+                idUsuario: widget.usuarioId ?? _currentUserId,
+                nombreUsuario: nombreUsuario,
+                comentario: _comentarioController.text.trim(),
+                fecha: DateTime.now(),
+              ),
         );
         _comentarioController.clear();
       });
@@ -87,6 +144,52 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
       );
     } finally {
       setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _confirmarEliminarComentario(Comentario comentario) async {
+    if (comentario.id == null) return;
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar comentario'),
+        content: const Text('¿Estás seguro de que deseas eliminar este comentario?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      try {
+        await AvistamientoService.deleteComentario(
+          widget.avistamiento.id,
+          comentario.id!,
+        );
+        setState(() {
+          _comentarios.removeWhere((c) => c.id == comentario.id);
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Comentario eliminado exitosamente')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al eliminar: $e')),
+          );
+        }
+      }
     }
   }
 
@@ -105,14 +208,6 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
         ? themeProvider.darkTheme.cardColor
         : Colors.white;
     final primaryTextColor = isDark ? Colors.white : const Color(0xFF0F1D33);
-    final secondaryTextColor = isDark ? Colors.white70 : Colors.grey[700]!;
-    final tertiaryTextColor = isDark ? Colors.white60 : Colors.grey[600]!;
-    final commentBackgroundColor = isDark
-        ? themeProvider.darkTheme.cardColor
-        : const Color(0xFFF5F5F5);
-    final inputFillColor = isDark
-        ? themeProvider.darkTheme.cardColor
-        : const Color(0xFFF5F5F5);
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -274,6 +369,91 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
                   _getIconForEspecie(widget.avistamiento.especie),
                   size: 32,
                   color: const Color(0xFF5C6445),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // 🔹 Barra social de autor y me gusta
+          Row(
+            children: [
+              InkWell(
+                onTap: () {
+                  if (widget.avistamiento.idUsuario != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ProfileScreen(
+                          userId: widget.avistamiento.idUsuario,
+                          nombreUsuario: widget.avistamiento.nombreUsuario,
+                        ),
+                      ),
+                    );
+                  }
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 14,
+                        backgroundColor: const Color(0xFF5C6445),
+                        child: Text(
+                          widget.avistamiento.nombreUsuario.isNotEmpty
+                              ? widget.avistamiento.nombreUsuario[0].toUpperCase()
+                              : 'U',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '@${widget.avistamiento.nombreUsuario}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: primaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const Spacer(),
+              InkWell(
+                onTap: _toggleLike,
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _userHasLiked
+                        ? Colors.red.withOpacity(0.1)
+                        : Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _userHasLiked ? Icons.favorite : Icons.favorite_border,
+                        color: _userHasLiked ? Colors.red : primaryTextColor,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '$_totalLikes',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: _userHasLiked ? Colors.red : primaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -617,6 +797,19 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
                             ],
                           ),
                         ),
+                        if (comentario.id != null &&
+                            (comentario.idUsuario == _currentUserId ||
+                                _currentUserRol == 'Administrador'))
+                          IconButton(
+                            icon: Icon(
+                              Icons.delete_outline,
+                              size: 20,
+                              color: Colors.red[300],
+                            ),
+                            tooltip: 'Eliminar comentario',
+                            onPressed: () =>
+                                _confirmarEliminarComentario(comentario),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -631,7 +824,7 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
                   ],
                 ),
               );
-            }).toList(),
+            }),
         ],
       ),
     );
