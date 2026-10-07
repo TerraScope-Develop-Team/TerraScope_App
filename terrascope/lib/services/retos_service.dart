@@ -42,15 +42,34 @@ class RetosService {
   }
 
   // Inscribirse a un reto
-  Future<bool> inscribirseReto(String retoId, String usuarioId) async {
+  Future<bool> inscribirseReto(String retoId) async {
     try {
+      if (retoId.trim().isEmpty) {
+        throw ArgumentError('Se requiere el ID del reto.');
+      }
+
       final response = await http.post(
         Uri.parse('$baseUrl/inscribirse'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({'retoId': retoId, 'usuarioId': usuarioId}),
+        body: json.encode({'retoId': retoId}),
       );
 
-      return response.statusCode == 200;
+      if (response.statusCode == 200) return true;
+
+      String errorMessage = response.body;
+      try {
+        final decoded = json.decode(response.body);
+        if (decoded is Map<String, dynamic> && decoded['message'] is String) {
+          errorMessage = decoded['message'] as String;
+        }
+      } on FormatException {
+        // Keep the response body to aid diagnosis if the server response isn't JSON.
+      }
+      print(
+        'Error HTTP ${response.statusCode} al inscribirse al reto '
+        '($retoId): $errorMessage',
+      );
+      return false;
     } catch (e) {
       print('Error en inscribirseReto: $e');
       return false;
