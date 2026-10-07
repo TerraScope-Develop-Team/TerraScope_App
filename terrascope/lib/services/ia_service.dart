@@ -1,8 +1,27 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:http/http.dart' as http_types;
 import '../config/auth_http.dart' as http;
 import '../config/api_config.dart';
 
 class IAService {
+  static const Duration _requestTimeout = Duration(seconds: 15);
+
+  static Future<http_types.Response> _postWithTimeout(
+    Uri url, {
+    required String body,
+  }) async {
+    try {
+      return await http
+          .post(url, headers: {'Content-Type': 'application/json'}, body: body)
+          .timeout(_requestTimeout);
+    } on TimeoutException {
+      throw Exception(
+        'La solicitud a IA superó los 15 segundos. Inténtalo nuevamente.',
+      );
+    }
+  }
+
   /// Envía una imagen en base64 al backend para identificar la especie.
   /// Devuelve un mapa con el nombre científico, común y el nivel de confianza.
   static Future<Map<String, dynamic>> identificarEspecie(
@@ -10,9 +29,8 @@ class IAService {
   ) async {
     final url = Uri.parse('${ApiConfig.baseUrl}/ia/identificar');
 
-    final response = await http.post(
+    final response = await _postWithTimeout(
       url,
-      headers: {'Content-Type': 'application/json'},
       body: json.encode({'imagen': imagenBase64}),
     );
 
@@ -45,9 +63,8 @@ class IAService {
   }) async {
     final url = Uri.parse('${ApiConfig.baseUrl}/ia/validar-registro');
 
-    final response = await http.post(
+    final response = await _postWithTimeout(
       url,
-      headers: {'Content-Type': 'application/json'},
       body: json.encode({
         'nombre_comun': nombreComun,
         'nombre_cientifico': nombreCientifico,
