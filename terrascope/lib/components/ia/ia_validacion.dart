@@ -23,6 +23,7 @@ class _IAIdentificacionState extends State<IAIdentificacion> {
     final picker = ImagePicker();
     final imagen = await picker.pickImage(source: ImageSource.gallery);
 
+    if (!mounted) return;
     if (imagen != null) {
       setState(() {
         _imagenSeleccionada = File(imagen.path);
@@ -53,15 +54,17 @@ class _IAIdentificacionState extends State<IAIdentificacion> {
       // Llamada al servicio de IA (debes tener IAService configurado)
       final resultado = await IAService.identificarEspecie(imagenBase64);
 
+      if (!mounted) return;
       setState(() {
         _resultadoIA = resultado;
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al identificar: $e')),
-      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error al identificar: $e')));
     } finally {
-      setState(() => _cargando = false);
+      if (mounted) setState(() => _cargando = false);
     }
   }
 
@@ -177,8 +180,12 @@ class _IAIdentificacionState extends State<IAIdentificacion> {
                     ),
                     const SizedBox(height: 12),
                     Text("🌿 Nombre común: ${_resultadoIA!['nombre_comun']}"),
-                    Text("🧬 Nombre científico: ${_resultadoIA!['nombre_cientifico']}"),
-                    Text("📊 Nivel de confianza: ${_resultadoIA!['nivel_confianza']}"),
+                    Text(
+                      "🧬 Nombre científico: ${_resultadoIA!['nombre_cientifico']}",
+                    ),
+                    Text(
+                      "📊 Nivel de confianza: ${_resultadoIA!['nivel_confianza']}",
+                    ),
                   ],
                 ),
               ),
