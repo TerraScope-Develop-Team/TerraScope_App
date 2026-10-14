@@ -49,6 +49,26 @@ class NotificationService with ChangeNotifier {
   bool _permissionPromptInProgress = false;
 
   List<AppNotification> get notifications => List.unmodifiable(_notifications);
+  int get unreadDangerousAlertCount => _unreadDangerousAlertIds.length;
+
+  void setUnreadDangerousAlerts(Iterable<String> alertIds) {
+    _unreadDangerousAlertIds
+      ..clear()
+      ..addAll(alertIds);
+    notifyListeners();
+  }
+
+  void registerUnreadDangerousAlert(String alertId) {
+    if (_unreadDangerousAlertIds.add(alertId)) {
+      notifyListeners();
+    }
+  }
+
+  void markDangerousAlertRead(String alertId) {
+    if (_unreadDangerousAlertIds.remove(alertId)) {
+      notifyListeners();
+    }
+  }
 
   Future<void> initialize({
     required Future<void> Function(Map<String, dynamic>) onNotificationTap,

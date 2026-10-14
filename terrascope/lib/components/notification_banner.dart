@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'map/location_preview_map.dart';
+import '../services/alerta_service.dart';
 import '../services/notification_service.dart';
+import 'package:terrascope/main.dart' show navigatorKey;
 
 class NotificationBanner extends StatelessWidget {
   const NotificationBanner({super.key});
@@ -15,18 +18,25 @@ class NotificationBanner extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
-        return Positioned(
-          top: 24,
-          right: 16,
-          width: 300,
-          child: Column(
-            children: notifications.map((notification) {
-              return _buildNotificationCard(
-                context,
-                notification,
-                notificationService,
-              );
-            }).toList(),
+        return SafeArea(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.95,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: notifications.map((notification) {
+                    return _buildNotificationCard(
+                      context,
+                      notification,
+                      notificationService,
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
           ),
         );
       },
@@ -38,29 +48,25 @@ class NotificationBanner extends StatelessWidget {
     AppNotification notification,
     NotificationService notificationService,
   ) {
-    Color backgroundColor;
-    Color textColor;
+    Color backgroundColor = Colors.black.withOpacity(0.9);
+    Color iconColor;
     IconData icon;
 
     switch (notification.type) {
       case NotificationType.success:
-        backgroundColor = Colors.green.shade50;
-        textColor = Colors.green.shade900;
+        iconColor = Colors.greenAccent;
         icon = Icons.check_circle;
         break;
       case NotificationType.warning:
-        backgroundColor = Colors.orange.shade50;
-        textColor = Colors.orange.shade900;
-        icon = Icons.warning;
+        iconColor = Colors.orangeAccent;
+        icon = Icons.warning_rounded;
         break;
       case NotificationType.error:
-        backgroundColor = Colors.red.shade50;
-        textColor = Colors.red.shade900;
-        icon = Icons.error;
+        iconColor = Colors.redAccent;
+        icon = Icons.error_rounded;
         break;
       default:
-        backgroundColor = Colors.blue.shade50;
-        textColor = Colors.blue.shade900;
+        iconColor = Colors.lightBlueAccent;
         icon = Icons.info;
     }
 
