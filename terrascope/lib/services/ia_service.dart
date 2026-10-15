@@ -1,16 +1,35 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:http/http.dart' as http_types;
 
 import '../config/api_config.dart';
 import 'api_client.dart';
+import 'api_exception.dart';
 
 class IAService {
-  /// Envia una imagen en base64 al backend para identificar la especie.
-  /// Devuelve un mapa con el nombre cientifico, comun y el nivel de confianza.
+  static const Duration _requestTimeout = Duration(seconds: 15);
+
+  static Future<http_types.Response> _postWithTimeout(
+    Uri url, {
+    required String body,
+  }) async {
+    try {
+      return await ApiClient.post(url, body: body).timeout(_requestTimeout);
+    } on TimeoutException {
+      throw const NetworkException(
+        message: 'La solicitud a IA superó los 15 segundos. Inténtalo nuevamente.',
+      );
+    }
+  }
+
+  /// Envía una imagen en base64 al backend para identificar la especie.
+  /// Devuelve un mapa con el nombre científico, común y el nivel de confianza.
   static Future<Map<String, dynamic>> identificarEspecie(
     String imagenBase64,
   ) async {
-    final response = await ApiClient.post(
-      Uri.parse('${ApiConfig.baseUrl}/ia/identificar'),
+    final url = Uri.parse('${ApiConfig.baseUrl}/ia/identificar');
+    final response = await _postWithTimeout(
+      url,
       body: json.encode({'imagen': imagenBase64}),
     );
 
@@ -22,7 +41,7 @@ class IAService {
     };
   }
 
-  /// Envia los datos del registro de fauna o flora al backend para validacion
+  /// Envía los datos del registro de fauna o flora al backend para validación
   /// contextual con IA.
   /// Devuelve un mapa con es_coherente, errores_detectados y sugerencia.
   static Future<Map<String, dynamic>> validarRegistro({
@@ -35,8 +54,9 @@ class IAService {
     required String estadoExtincion,
     required Map<String, dynamic> habitat,
   }) async {
-    final response = await ApiClient.post(
-      Uri.parse('${ApiConfig.baseUrl}/ia/validar-registro'),
+    final url = Uri.parse('${ApiConfig.baseUrl}/ia/validar-registro');
+    final response = await _postWithTimeout(
+      url,
       body: json.encode({
         'nombre_comun': nombreComun,
         'nombre_cientifico': nombreCientifico,
@@ -55,7 +75,7 @@ class IAService {
       'errores_detectados': List<String>.from(
         data['errores_detectados'] ?? [],
       ),
-      'sugerencia': data['sugerencia'] ?? 'No se recibio sugerencia',
+      'sugerencia': data['sugerencia'] ?? 'No se recibió sugerencia',
     };
   }
 }

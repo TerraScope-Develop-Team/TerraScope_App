@@ -10,8 +10,18 @@ import 'fauna_flora_service.dart';
 class AvistamientoService {
   static final FaunaFloraService _service = FaunaFloraService();
 
-  static Future<List<Avistamiento>> getAvistamientos({String? especie}) {
-    return _service.getAllFaunaFlora(especie: especie);
+  static Future<List<Avistamiento>> getAvistamientos({
+    String? especie,
+    String? busqueda,
+    String? cursor,
+    int limit = 100,
+  }) {
+    return _service.getAllFaunaFlora(
+      especie: especie,
+      busqueda: busqueda,
+      cursor: cursor,
+      limit: limit,
+    );
   }
 
   static Future<Avistamiento?> getAvistamientoById(String id) {
@@ -44,7 +54,12 @@ class AvistamientoService {
     return _service.deleteComentario(avistamientoId, comentarioId);
   }
 
+<<<<<<< HEAD
   static Future<List<Avistamiento>> searchAvistamientos(String query) {
     return _service.searchAvistamientos(query);
+=======
+  static Future<List<Avistamiento>> searchAvistamientos(String query) async {
+    return getAvistamientos(busqueda: query);
+>>>>>>> a2d45c8161740bbf522f151d6d3f963cdf420e95
   }
 }

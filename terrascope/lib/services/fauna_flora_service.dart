@@ -54,14 +54,24 @@ class FaunaFloraService {
 
   // --- Consultas -------------------------------------------------------
 
-  /// Obtener todos los avistamientos, opcionalmente filtrados por [especie].
-  Future<List<Avistamiento>> getAllFaunaFlora({String? especie}) async {
-    String url = '$baseUrl/fauna-flora';
-    if (especie != null) {
-      url += '?categoria=$especie';
+  /// Obtener todos los avistamientos, opcionalmente filtrados por [especie], [busqueda], [cursor] y [limit].
+  Future<List<Avistamiento>> getAllFaunaFlora({
+    String? especie,
+    String? busqueda,
+    String? cursor,
+    int limit = 100,
+  }) async {
+    final queryParameters = <String, String>{'limit': '$limit'};
+    if (especie != null) queryParameters['categoria'] = especie;
+    if (busqueda != null && busqueda.trim().isNotEmpty) {
+      queryParameters['buscar'] = busqueda.trim();
+    }
+    if (cursor != null && cursor.isNotEmpty) {
+      queryParameters['cursor'] = cursor;
     }
 
-    final response = await ApiClient.get(Uri.parse(url));
+    final uri = Uri.parse('$baseUrl/fauna-flora').replace(queryParameters: queryParameters);
+    final response = await ApiClient.get(uri);
 
     final dataList = ApiResponse.extractList(response.body);
     return dataList
