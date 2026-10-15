@@ -54,12 +54,7 @@ class AvistamientoService {
     return _service.deleteComentario(avistamientoId, comentarioId);
   }
 
-<<<<<<< HEAD
   static Future<List<Avistamiento>> searchAvistamientos(String query) {
-    return _service.searchAvistamientos(query);
-=======
-  static Future<List<Avistamiento>> searchAvistamientos(String query) async {
     return getAvistamientos(busqueda: query);
->>>>>>> a2d45c8161740bbf522f151d6d3f963cdf420e95
   }
 }
