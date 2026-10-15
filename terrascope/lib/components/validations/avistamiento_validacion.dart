@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:developer';
+import '../../providers/request_state.dart';
 import '../../services/fauna_flora_service.dart';
 import '../../services/session_service.dart';
 import '../models/avistamiento_model.dart';
 
 /// Gestiona la lógica de validación de avistamientos
 /// y centraliza el consumo de FaunaFloraService.
-class AvistamientoValidacionProvider with ChangeNotifier {
+class AvistamientoValidacionProvider with ChangeNotifier, RequestStateMixin {
   final FaunaFloraService _service;
   final SessionService _sessionService = SessionService();
 
@@ -17,32 +18,15 @@ class AvistamientoValidacionProvider with ChangeNotifier {
   List<Avistamiento> _avistamientos = [];
   List<Avistamiento> get avistamientos => _avistamientos;
 
-  /// Estado de carga
-  bool _isLoading = false;
-  bool get isLoading => _isLoading;
-
-  /// Error actual
-  String? _error;
-  String? get error => _error;
+  /// Error actual (mantiene compatibilidad)
+  String? get error => errorMessage;
 
   /// Cargar todos los avistamientos
-  Future<void> cargarAvistamientos() async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      log("Cargando lista de avistamientos...");
-      _avistamientos = await _service.getAllFaunaFlora();
-      log("Avistamientos cargados: ${_avistamientos.length}");
-    } catch (e) {
-      _error = 'Error al cargar avistamientos: $e';
-      log("$_error");
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<void> cargarAvistamientos() => executeRequest(() async {
+    log("Cargando lista de avistamientos...");
+    _avistamientos = await _service.getAllFaunaFlora();
+    log("Avistamientos cargados: ${_avistamientos.length}");
+  });
 
   ///  Votar validación comunitaria
   Future<void> votar(String idAvistamiento) async {

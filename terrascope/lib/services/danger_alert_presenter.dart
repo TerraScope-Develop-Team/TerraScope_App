@@ -20,7 +20,13 @@ class DangerAlertPresenter {
     );
     if (!shouldPresent) return false;
 
-    final especie = alert['especie']?.toString() ?? 'Desconocida';
+    final nombreComun = alert['nombre_comun']?.toString()?.trim();
+    final tipoEspecie = alert['especie']?.toString()?.trim();
+    final especie = (nombreComun != null && nombreComun.isNotEmpty)
+        ? (tipoEspecie != null && tipoEspecie.isNotEmpty && tipoEspecie != nombreComun
+            ? '$nombreComun ($tipoEspecie)'
+            : nombreComun)
+        : (tipoEspecie ?? 'Desconocida');
     notificationService.showNotification(
       AppNotification(
         id: 'alerta_peligro_$alertId',

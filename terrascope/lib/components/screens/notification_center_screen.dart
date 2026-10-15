@@ -118,13 +118,29 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        alert['especie']?.toString() ?? 'Fauna peligrosa',
-                        style: TextStyle(
-                          color: Colors.red.shade700,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _alertTitle(alert),
+                            style: TextStyle(
+                              color: Colors.red.shade700,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (_alertSubtitle(alert) != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Categoría: ${_alertSubtitle(alert)}',
+                              style: const TextStyle(
+                                color: Colors.black54,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ],
@@ -168,6 +184,38 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
         ),
       ),
     );
+  }
+
+  String _alertTitle(Map<String, dynamic> alert) {
+    final nombreComun = alert['nombre_comun']?.toString()?.trim();
+    if (nombreComun != null && nombreComun.isNotEmpty) {
+      return nombreComun;
+    }
+    final nombreCientifico = alert['nombre_cientifico']?.toString()?.trim();
+    if (nombreCientifico != null && nombreCientifico.isNotEmpty) {
+      return nombreCientifico;
+    }
+    final especie = alert['especie']?.toString()?.trim();
+    if (especie != null && especie.isNotEmpty) {
+      return especie;
+    }
+    return 'Fauna peligrosa';
+  }
+
+  String? _alertSubtitle(Map<String, dynamic> alert) {
+    final nombreComun = alert['nombre_comun']?.toString()?.trim();
+    final especie = alert['especie']?.toString()?.trim();
+    final nombreCientifico = alert['nombre_cientifico']?.toString()?.trim();
+
+    if (nombreComun != null && nombreComun.isNotEmpty) {
+      if (especie != null && especie.isNotEmpty && especie != nombreComun) {
+        return especie;
+      }
+      if (nombreCientifico != null && nombreCientifico.isNotEmpty) {
+        return nombreCientifico;
+      }
+    }
+    return null;
   }
 
   double? _coordinate(dynamic value) {
@@ -237,6 +285,10 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                 itemBuilder: (context, index) {
                   final alert = _alerts[index];
                   final isUnread = alert['leida'] != true;
+                  final title = _alertTitle(alert);
+                  final category = _alertSubtitle(alert);
+                  final date = _formatDate(alert['createdAt']);
+
                   return ListTile(
                     leading: Icon(
                       isUnread
@@ -245,14 +297,16 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                       color: isUnread ? Colors.red.shade700 : Colors.grey,
                     ),
                     title: Text(
-                      alert['especie']?.toString() ?? 'Fauna peligrosa',
+                      title,
                       style: TextStyle(
                         fontWeight: isUnread
                             ? FontWeight.bold
                             : FontWeight.normal,
                       ),
                     ),
-                    subtitle: Text(_formatDate(alert['createdAt'])),
+                    subtitle: Text(
+                      category != null ? '$category · $date' : date,
+                    ),
                     trailing: isUnread
                         ? Icon(
                             Icons.circle,

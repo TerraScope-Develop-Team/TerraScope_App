@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/reto_model.dart';
@@ -736,6 +737,17 @@ class _RetoDetalleScreenState extends State<RetoDetalleScreen>
     );
   }
 
+  Uint8List? _safeDecodeBase64(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    try {
+      final clean = raw.contains(',') ? raw.split(',').last : raw;
+      final normalized = clean.replaceAll(RegExp(r'\s+'), '');
+      return base64Decode(normalized);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Widget _buildPodiumStep(
     Map<String, dynamic> item,
     int posicion,
@@ -744,6 +756,7 @@ class _RetoDetalleScreenState extends State<RetoDetalleScreen>
     final usuario = item['usuario'];
     final fecha = DateTime.parse(item['fecha_completado']);
     final imagenPerfil = usuario['imagen_perfil'];
+    final imageBytes = _safeDecodeBase64(imagenPerfil?.toString());
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -767,9 +780,9 @@ class _RetoDetalleScreenState extends State<RetoDetalleScreen>
             ],
           ),
           child: ClipOval(
-            child: imagenPerfil != null && imagenPerfil.isNotEmpty
+            child: imageBytes != null
                 ? Image.memory(
-                    base64Decode(imagenPerfil),
+                    imageBytes,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) =>
                         _buildDefaultAvatar(posicion),
