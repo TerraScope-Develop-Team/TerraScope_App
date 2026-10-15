@@ -81,7 +81,7 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
     'Otro',
   ];
 
-  // 🆕 Lista de especies para Flora
+  // Lista de especies para Flora
   final List<String> _especiesFlora = [
     'Planta',
     'Árbol',
@@ -99,12 +99,12 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
 
   Future<void> _loadHabitats() async {
     try {
-      print('🔍 Intentando cargar hábitats...');
+      print('Intentando cargar hábitats...');
       final habitats = await _habitatService.getAllHabitats();
-      print('✅ Hábitats cargados: ${habitats.length}');
+      print('Hábitats cargados: ${habitats.length}');
 
       if (habitats.isNotEmpty) {
-        print('📋 Primer hábitat: ${habitats[0].nombreHabitat}');
+        print('Primer hábitat: ${habitats[0].nombreHabitat}');
       }
 
       if (mounted) {
@@ -114,8 +114,8 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
         });
       }
     } catch (e, stackTrace) {
-      print('❌ Error al cargar hábitats: $e');
-      print('📍 Stack trace: $stackTrace');
+      print('Error al cargar hábitats: $e');
+      print('Stack trace: $stackTrace');
 
       if (mounted) {
         setState(() {
@@ -126,7 +126,7 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
     }
   }
 
-  // 🆕 Método para actualizar campos cuando cambia el tipo
+  // Método para actualizar campos cuando cambia el tipo
   void _actualizarCamposSegunTipo(String nuevoTipo) {
     setState(() {
       _tipo = nuevoTipo;
@@ -708,11 +708,11 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
   }
 
   Future<void> _validarRegistro() async {
-    print('🔹 Datos a validar:');
-    print('  - Nombre Común: ${_nombreComunController.text}');
-    print('  - Nombre Científico: ${_nombreCientificoController.text}');
-    print('  - Especie: $_especieSeleccionada');
-    print('  - Descripción: ${_descripcionController.text}');
+    print('Datos a validar:');
+    print('- Nombre Común: ${_nombreComunController.text}');
+    print('- Nombre Científico: ${_nombreCientificoController.text}');
+    print('- Especie: $_especieSeleccionada');
+    print('- Descripción: ${_descripcionController.text}');
     print(
       '  - Hábitat: ${_selectedHabitat != null ? _selectedHabitat!.nombreHabitat : "No seleccionado"}',
     );
@@ -893,7 +893,7 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
                                         const SizedBox(height: 4),
                                         Text(
                                           esCoherente
-                                              ? 'Datos coherentes ✓'
+                                              ? 'Datos coherentes '
                                               : 'Requiere revisión',
                                           style: const TextStyle(
                                             fontSize: 16,
@@ -1269,11 +1269,11 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
         esPeligrosa: _esPeligrosa,
       );
 
-      print('📤 Datos a enviar:');
-      print('  - Nombre: ${avistamiento.nombreComun}');
-      print('  - Usuario: ${avistamiento.nombreUsuario}');
-      print('  - Tipo: ${avistamiento.tipo}');
-      print('  - Habitat ID: ${avistamiento.habitat.idHabitat}');
+      print('Datos a enviar:');
+      print('- Nombre: ${avistamiento.nombreComun}');
+      print('- Usuario: ${avistamiento.nombreUsuario}');
+      print('- Tipo: ${avistamiento.tipo}');
+      print('- Habitat ID: ${avistamiento.habitat.idHabitat}');
       print(
         '  - Ubicación: ${avistamiento.ubicacion.latitud}, ${avistamiento.ubicacion.longitud}',
       );
@@ -1282,7 +1282,7 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
       );
 
       final jsonData = avistamiento.toJson();
-      print('📋 JSON completo:');
+      print('JSON completo:');
       print(jsonData);
 
       await _service.createFaunaFlora(avistamiento);
@@ -1402,7 +1402,7 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
   }
 
   Widget _buildFormStep() {
-    // 🆕 Determinar si es Flora para deshabilitar campos
+    // Determinar si es Flora para deshabilitar campos
     final bool esFlora = _tipo == 'Flora';
 
     return SingleChildScrollView(
@@ -1474,7 +1474,7 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
               ),
             const SizedBox(height: 24),
 
-            // Tipo (Fauna/Flora) - 🆕 Con callback actualizado
+            // Tipo (Fauna/Flora) -  Con callback actualizado
             const Text(
               'Tipo',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -1517,7 +1517,7 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
                   value?.isEmpty ?? true ? 'Campo requerido' : null,
             ),
 
-            // 🆕 Especie - Cambia opciones según tipo
+            // Especie - Cambia opciones según tipo
             const Text(
               'Especie',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -1567,7 +1567,7 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
                     },
             ),
 
-            // 🆕 Mensaje informativo cuando es Flora
+            // Mensaje informativo cuando es Flora
             if (esFlora) ...[
               const SizedBox(height: 8),
               Container(
@@ -1701,7 +1701,7 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
             ),
             const SizedBox(height: 16),
 
-            // 🆕 Comportamiento - Deshabilitado para Flora
+            // Comportamiento - Deshabilitado para Flora
             const Text(
               'Comportamiento',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -1778,7 +1778,7 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
             ),
             const SizedBox(height: 16),
 
-            // 🆕 Estado del Especimen - Deshabilitado para Flora
+            // Estado del Especimen - Deshabilitado para Flora
             _buildTextField(
               controller: _estadoEspecimenController,
               label: 'Estado del Espécimen',
@@ -1946,7 +1946,7 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
     int maxLines = 1,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
-    bool enabled = true, // 🆕 Parámetro para habilitar/deshabilitar
+    bool enabled = true, // Parámetro para habilitar/deshabilitar
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -1963,13 +1963,13 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
             maxLines: maxLines,
             keyboardType: keyboardType,
             validator: validator,
-            enabled: enabled, // 🆕 Aplicar habilitación
+            enabled: enabled, // Aplicar habilitación
             decoration: InputDecoration(
               hintText: hint,
               filled: true,
               fillColor: enabled
                   ? Colors.white
-                  : Colors.grey[200], // 🆕 Color cuando está deshabilitado
+                  : Colors.grey[200], // Color cuando está deshabilitado
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide(color: Colors.grey[300]!),
@@ -1979,7 +1979,7 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
                 borderSide: BorderSide(color: Colors.grey[300]!),
               ),
               disabledBorder: OutlineInputBorder(
-                // 🆕 Borde cuando está deshabilitado
+                // Borde cuando está deshabilitado
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide(color: Colors.grey[300]!),
               ),
@@ -1994,7 +1994,7 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
     );
   }
 
-  // 🆕 Iconos actualizados para incluir Flora
+  // Iconos actualizados para incluir Flora
   IconData _getIconForEspecie(String especie) {
     switch (especie.toLowerCase()) {
       case 'mamífero':
@@ -2028,7 +2028,7 @@ class _CreateAvistamientoScreenState extends State<CreateAvistamientoScreen> {
     }
   }
 
-  // 🆕 Colores actualizados para incluir Flora
+  // Colores actualizados para incluir Flora
   Color _getColorForEspecie(String especie) {
     switch (especie.toLowerCase()) {
       case 'mamífero':

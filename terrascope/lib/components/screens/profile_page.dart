@@ -278,7 +278,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: const TextStyle(color: Colors.white, fontSize: 12),
             ),
           ),
-          // 👇 NUEVO: Mostrar título activo
+          // Mostrar titulo activo
           if (tituloActivo != null) ...[
             const SizedBox(height: 8),
             Container(
@@ -322,7 +322,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           const SizedBox(height: 18),
 
-          // 🔹 Métricas sociales: Seguidores y Seguidos
+          // Metricas sociales: Seguidores y Seguidos
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -382,7 +382,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
 
-          // 🔹 Botón Seguir / Dejar de seguir si es perfil ajeno
+          // Boton Seguir / Dejar de seguir si es perfil ajeno
           if (!_isOwnProfile) ...[
             const SizedBox(height: 14),
             ElevatedButton.icon(

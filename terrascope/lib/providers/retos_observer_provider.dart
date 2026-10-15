@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
 import '../components/models/reto_model.dart';
+import '../services/notification_service.dart';
 import '../services/retos_service.dart';
 import '../services/session_service.dart';
-import '../services/notification_service.dart';
+import 'request_state.dart';
 
-class RetosObserverProvider with ChangeNotifier {
+class RetosObserverProvider with ChangeNotifier, RequestStateMixin {
   final RetosService _retosService = RetosService();
   final SessionService _sessionService = SessionService();
   NotificationService? _notificationService;
@@ -13,34 +16,24 @@ class RetosObserverProvider with ChangeNotifier {
   List<Reto> _retosActivos = [];
   List<Logro> _logrosUsuario = [];
   Map<String, dynamic> _historialUsuario = {};
-  bool _isLoading = false;
-  String? _error;
 
   List<Reto> get retosActivos => _retosActivos;
   List<Logro> get logrosUsuario => _logrosUsuario;
   Map<String, dynamic> get historialUsuario => _historialUsuario;
-  bool get isLoading => _isLoading;
-  String? get error => _error;
 
-  // Cargar retos activos
+  /// Compatibilidad con código existente que lee `.error`
+  String? get error => errorMessage;
+
+  /// Cargar retos activos usando el mixin de estado
   Future<void> cargarRetosActivos() async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
+    await executeRequest(() async {
       _retosActivos = await _retosService.getRetosActivos();
-      print('✅ Retos cargados: ${_retosActivos.length}');
-    } catch (e) {
-      _error = 'Error al cargar retos: $e';
-      print('❌ $_error');
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+      debugPrint('Retos cargados: ${_retosActivos.length}');
+      return _retosActivos;
+    });
   }
 
-  // Cargar logros del usuario
+  /// Cargar logros del usuario
   Future<void> cargarLogrosUsuario() async {
     try {
       final userData = await _sessionService.getUserData();
@@ -57,15 +50,15 @@ class RetosObserverProvider with ChangeNotifier {
             .toList();
         _historialUsuario = data['historial'] ?? {};
 
-        print('✅ Logros cargados: ${_logrosUsuario.length}');
+        debugPrint('Logros cargados: ${_logrosUsuario.length}');
         notifyListeners();
       }
     } catch (e) {
-      print('❌ Error cargando logros: $e');
+      debugPrint('Error cargando logros: $e');
     }
   }
 
-  // Inscribirse a un reto
+  /// Inscribirse a un reto
   Future<bool> inscribirseReto(String retoId) async {
     try {
       final success = await _retosService.inscribirseReto(retoId);
@@ -73,24 +66,23 @@ class RetosObserverProvider with ChangeNotifier {
       if (success) {
         await cargarRetosActivos();
         await cargarLogrosUsuario();
-        // Notificación de suscripción a reto
         final notification = AppNotification(
           id: 'suscripcion_$retoId',
           title: 'Suscrito a Reto',
-          message: 'Te has suscrito al reto. ¡Estate atento, pronto cerrará!',
+          message: 'Te has suscrito al reto. Estate atento, pronto cerrará!',
           type: NotificationType.info,
         );
-        _notificationService!.showNotification(notification);
+        _notificationService?.showNotification(notification);
       }
 
       return success;
     } catch (e) {
-      print('❌ Error inscribiéndose al reto: $e');
+      debugPrint('Error inscribiendose al reto: $e');
       return false;
     }
   }
 
-  // Desinscribirse de un reto
+  /// Desinscribirse de un reto
   Future<bool> desinscribirseReto(String retoId) async {
     try {
       final userData = await _sessionService.getUserData();
@@ -105,12 +97,12 @@ class RetosObserverProvider with ChangeNotifier {
 
       return success;
     } catch (e) {
-      print('❌ Error desinscribiéndose del reto: $e');
+      debugPrint('Error desinscribiendose del reto: $e');
       return false;
     }
   }
 
-  // Obtener progreso en un reto
+  /// Obtener progreso en un reto
   Future<Map<String, ProgresoReto>?> getProgresoReto(String retoId) async {
     try {
       final userData = await _sessionService.getUserData();
@@ -129,12 +121,12 @@ class RetosObserverProvider with ChangeNotifier {
 
       return null;
     } catch (e) {
-      print('❌ Error obteniendo progreso: $e');
+      debugPrint('Error obteniendo progreso: $e');
       return null;
     }
   }
 
-  // Toggle visibilidad de logro
+  /// Toggle visibilidad de logro
   Future<bool> toggleMostrarLogro(String logroId) async {
     try {
       final userData = await _sessionService.getUserData();
@@ -152,12 +144,12 @@ class RetosObserverProvider with ChangeNotifier {
 
       return success;
     } catch (e) {
-      print('❌ Error cambiando visibilidad: $e');
+      debugPrint('Error cambiando visibilidad: $e');
       return false;
     }
   }
 
-  // Verificar si el usuario está inscrito en un reto
+  /// Verificar si el usuario está inscrito en un reto
   bool estaInscrito(String retoId, String? usuarioId) {
     if (usuarioId == null) return false;
 
@@ -178,7 +170,7 @@ class RetosObserverProvider with ChangeNotifier {
     return reto.usuariosInscritos.contains(usuarioId);
   }
 
-  // Verificar si el usuario completó un reto
+  /// Verificar si el usuario completó un reto
   bool haCompletado(String retoId, String? usuarioId) {
     if (usuarioId == null) return false;
 
@@ -206,16 +198,14 @@ class RetosObserverProvider with ChangeNotifier {
     _notificationService = service;
   }
 
-  // Actualiza retos activos, cargas logros y genera notificaciones para nuevos retos y retos completados
+  /// Actualiza retos activos, carga logros y genera notificaciones
   Future<void> actualizarRetosYNotificaciones() async {
-    // Guardar estado previo de retos finalizados del usuario y retos activos
     final prevRetosFinalizados = List<String>.from(_retosFinalizadosPrevios);
     final prevRetos = List<Reto>.from(_retosPrevios);
 
     await cargarRetosActivos();
     await cargarLogrosUsuario();
 
-    // Detectar nuevos retos finalizados
     final userData = await _sessionService.getUserData();
     final usuarioId = userData?['_id'];
 
@@ -226,21 +216,17 @@ class RetosObserverProvider with ChangeNotifier {
         .map((r) => r.id)
         .toList();
 
-    // Retos completados nuevos (en actuales y no en previos)
     final nuevosRetosCompletados = retosFinalizadosActuales
         .where((id) => !prevRetosFinalizados.contains(id))
         .toList();
 
-    // Detectar nuevos retos disponibles
     final nuevosRetos = _retosActivos
         .where((reto) => !prevRetos.any((prevReto) => prevReto.id == reto.id))
         .toList();
 
-    // Actualizar el estado previo
     _retosFinalizadosPrevios = retosFinalizadosActuales;
     _retosPrevios = List<Reto>.from(_retosActivos);
 
-    // Notificar nuevos retos completados
     for (var retoId in nuevosRetosCompletados) {
       final reto = _retosActivos.firstWhere(
         (r) => r.id == retoId,
@@ -258,23 +244,22 @@ class RetosObserverProvider with ChangeNotifier {
       if (reto.id != '') {
         final notification = AppNotification(
           id: 'reto_completado_$retoId',
-          title: '¡Reto Completado!',
-          message: 'Has completado el reto "${reto.nombreReto}". ¡Felicidades!',
+          title: 'Reto Completado',
+          message: 'Has completado el reto "${reto.nombreReto}". Felicitaciones!',
           type: NotificationType.success,
         );
-        _notificationService!.showNotification(notification);
+        _notificationService?.showNotification(notification);
       }
     }
 
-    // Notificar solo si hay nuevos retos disponibles
     if (nuevosRetos.isNotEmpty) {
       final notification = AppNotification(
         id: 'nuevo_reto',
         title: 'Nuevos Retos Disponibles',
-        message: 'Se han generado nuevos retos para ti. ¡Échales un vistazo!',
+        message: 'Se han generado nuevos retos para ti. Revisa la seccion de retos.',
         type: NotificationType.success,
       );
-      _notificationService!.showNotification(notification);
+      _notificationService?.showNotification(notification);
     }
   }
 }

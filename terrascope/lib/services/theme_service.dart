@@ -11,7 +11,7 @@ class ThemeProvider extends ChangeNotifier {
   // Lógica de cambio (El evento que notifica a los observadores)
   void toggleTheme(bool isDark) {
     _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
-    notifyListeners(); // 📢 ¡Aquí ocurre el patrón Observer!
+    notifyListeners(); // Notifica el cambio de tema mediante Patron Observer
   }
 
   // --- DEFINICIÓN DE TEMAS ---

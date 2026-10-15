@@ -31,21 +31,21 @@ class _LoginPageState extends State<LoginPage> {
     final user = await AuthService().login(email, password);
 
     if (user != null) {
-      // ✅ GUARDAR LA SESIÓN
+      // Guardar la sesion
       final sessionSaved = await _sessionService.saveSession(user);
 
       setState(() => isLoading = false);
 
       if (sessionSaved) {
-        print('✅ Sesión guardada correctamente');
-        print('👤 Usuario: ${user['nombre_usuario']}');
+        debugPrint('Sesion guardada correctamente');
+        debugPrint('Usuario: ${user['nombre_usuario']}');
 
         // Navegar sin pasar argumentos (ya están en la sesión)
         Navigator.pushReplacementNamed(context, '/home');
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("¡Bienvenido ${user['nombre_usuario']}! ✅"),
+            content: Text("¡Bienvenido ${user['nombre_usuario']}!"),
             backgroundColor: Colors.green,
           ),
         );
@@ -60,7 +60,7 @@ class _LoginPageState extends State<LoginPage> {
     } else {
       setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Correo o contraseña incorrectos ❌")),
+        const SnackBar(content: Text("Correo o contraseña incorrectos")),
       );
     }
   }
@@ -129,7 +129,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const SizedBox(height: 30),
 
-                        // 🔹 Campo correo
+                        // Campo correo
                         TextField(
                           controller: emailController,
                           decoration: InputDecoration(
@@ -148,7 +148,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const SizedBox(height: 20),
 
-                        // 🔹 Campo contraseña
+                        // Campo contraseña
                         TextField(
                           controller: passwordController,
                           decoration: InputDecoration(
@@ -167,7 +167,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const SizedBox(height: 30),
 
-                        // 🔹 Botón
+                        // Boton
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
