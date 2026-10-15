@@ -375,7 +375,7 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
           ),
           const SizedBox(height: 12),
 
-          // 🔹 Barra social de autor y me gusta
+          // Barra social de autor y me gusta
           Row(
             children: [
               InkWell(

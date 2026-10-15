@@ -81,8 +81,8 @@ class _LoginPageState extends State<LoginPage>
       setState(() => isLoading = false);
 
       if (sessionSaved) {
-        print('✅ Sesión guardada correctamente');
-        print('👤 Usuario: ${user['nombre_usuario']}');
+        debugPrint('Sesion guardada correctamente');
+        debugPrint('Usuario: ${user['nombre_usuario']}');
 
         // Conectar al WebSocket para recibir alertas en tiempo real
         final notificationService = Provider.of<NotificationService>(
@@ -114,9 +114,9 @@ class _LoginPageState extends State<LoginPage>
             position.latitude,
             position.longitude,
           );
-          print('📍 Ubicación enviada al iniciar sesión');
+          debugPrint('Ubicacion enviada al iniciar sesion');
         } catch (e) {
-          print('⚠️ No se pudo enviar ubicación al login: $e');
+          debugPrint('No se pudo enviar ubicacion al login: $e');
         }
 
         Navigator.pushReplacementNamed(context, '/home');

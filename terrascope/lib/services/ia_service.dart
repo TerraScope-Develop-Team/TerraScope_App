@@ -1,37 +1,29 @@
 import 'dart:convert';
-import '../config/auth_http.dart' as http;
+
 import '../config/api_config.dart';
+import 'api_client.dart';
 
 class IAService {
-  /// Envía una imagen en base64 al backend para identificar la especie.
-  /// Devuelve un mapa con el nombre científico, común y el nivel de confianza.
+  /// Envia una imagen en base64 al backend para identificar la especie.
+  /// Devuelve un mapa con el nombre cientifico, comun y el nivel de confianza.
   static Future<Map<String, dynamic>> identificarEspecie(
     String imagenBase64,
   ) async {
-    final url = Uri.parse('${ApiConfig.baseUrl}/ia/identificar');
-
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
+    final response = await ApiClient.post(
+      Uri.parse('${ApiConfig.baseUrl}/ia/identificar'),
       body: json.encode({'imagen': imagenBase64}),
     );
 
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-
-      return {
-        'nombre_cientifico': data['nombre_cientifico'] ?? 'Desconocido',
-        'nombre_comun': data['nombre_comun'] ?? 'Desconocido',
-        'nivel_confianza': data['nivel_confianza'] ?? 'Desconocido',
-      };
-    } else {
-      throw Exception(
-        'Error al identificar la especie: ${response.statusCode} - ${response.body}',
-      );
-    }
+    final data = json.decode(response.body);
+    return {
+      'nombre_cientifico': data['nombre_cientifico'] ?? 'Desconocido',
+      'nombre_comun': data['nombre_comun'] ?? 'Desconocido',
+      'nivel_confianza': data['nivel_confianza'] ?? 'Desconocido',
+    };
   }
 
-  /// Envía los datos del registro de fauna o flora al backend para validación contextual con IA.
+  /// Envia los datos del registro de fauna o flora al backend para validacion
+  /// contextual con IA.
   /// Devuelve un mapa con es_coherente, errores_detectados y sugerencia.
   static Future<Map<String, dynamic>> validarRegistro({
     required String nombreComun,
@@ -43,11 +35,8 @@ class IAService {
     required String estadoExtincion,
     required Map<String, dynamic> habitat,
   }) async {
-    final url = Uri.parse('${ApiConfig.baseUrl}/ia/validar-registro');
-
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
+    final response = await ApiClient.post(
+      Uri.parse('${ApiConfig.baseUrl}/ia/validar-registro'),
       body: json.encode({
         'nombre_comun': nombreComun,
         'nombre_cientifico': nombreCientifico,
@@ -60,19 +49,13 @@ class IAService {
       }),
     );
 
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      return {
-        'es_coherente': data['es_coherente'] ?? false,
-        'errores_detectados': List<String>.from(
-          data['errores_detectados'] ?? [],
-        ),
-        'sugerencia': data['sugerencia'] ?? 'No se recibió sugerencia',
-      };
-    } else {
-      throw Exception(
-        'Error al validar registro: ${response.statusCode} - ${response.body}',
-      );
-    }
+    final data = json.decode(response.body);
+    return {
+      'es_coherente': data['es_coherente'] ?? false,
+      'errores_detectados': List<String>.from(
+        data['errores_detectados'] ?? [],
+      ),
+      'sugerencia': data['sugerencia'] ?? 'No se recibio sugerencia',
+    };
   }
 }

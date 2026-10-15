@@ -1,113 +1,89 @@
 import 'dart:convert';
-import '../config/auth_http.dart' as http;
-import '../config/api_config.dart';
-import '../components/models/usuario_model.dart';
 
-class ApiService {
+import '../components/models/usuario_model.dart';
+import '../config/api_config.dart';
+import 'api_client.dart';
+import 'api_response.dart';
+
+/// Servicio para operaciones de perfil y relaciones sociales de usuario.
+///
+/// Consolidado de la antigua clase `ApiService` en `user_service.dart`.
+/// Las operaciones CRUD basicas de usuario estan en [AuthService].
+class UserService {
   static const String baseUrl = ApiConfig.baseUrl;
 
-  // Obtener todos los usuarios
+  /// Obtener todos los usuarios
   static Future<List<dynamic>> getUsuarios() async {
-    final response = await http.get(Uri.parse('$baseUrl/usuarios'));
-
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      throw Exception('Error al cargar usuarios');
-    }
+    final response = await ApiClient.get(
+      Uri.parse('$baseUrl/usuarios'),
+    );
+    return json.decode(response.body);
   }
 
+  /// Obtener todos los registros de fauna/flora
   static Future<List<dynamic>> getFaunaFlora() async {
-    final response = await http.get(Uri.parse('$baseUrl/fauna-flora'));
-
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      throw Exception('Error al cargar fauna/flora');
-    }
+    final response = await ApiClient.get(
+      Uri.parse('$baseUrl/fauna-flora'),
+    );
+    return json.decode(response.body);
   }
 
-  /// Obtener perfil de usuario (con métricas sociales)
+  /// Obtener perfil de usuario (con metricas sociales)
   static Future<UsuarioPerfil> getPerfilUsuario(String userId) async {
-    final response = await http.get(Uri.parse('$baseUrl/usuarios/$userId'));
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body) as Map<String, dynamic>;
-      return UsuarioPerfil.fromJson(data);
-    } else {
-      throw Exception('Error al cargar perfil de usuario: ${response.statusCode}');
-    }
+    final response = await ApiClient.get(
+      Uri.parse('$baseUrl/usuarios/$userId'),
+    );
+    final data = json.decode(response.body) as Map<String, dynamic>;
+    return UsuarioPerfil.fromJson(data);
   }
 
   /// Seguir a un usuario (POST /usuarios/:id/seguir)
-  static Future<Map<String, dynamic>> seguirUsuario(String targetUserId) async {
-    final response = await http.post(
+  static Future<Map<String, dynamic>> seguirUsuario(
+    String targetUserId,
+  ) async {
+    final response = await ApiClient.post(
       Uri.parse('$baseUrl/usuarios/$targetUserId/seguir'),
-      headers: {'Content-Type': 'application/json'},
     );
-
-    if (response.statusCode == 200) {
-      return json.decode(response.body) as Map<String, dynamic>;
-    } else {
-      throw Exception('Error al seguir usuario: ${response.body}');
-    }
+    return json.decode(response.body) as Map<String, dynamic>;
   }
 
   /// Dejar de seguir a un usuario (POST /usuarios/:id/dejar-seguir)
-  static Future<Map<String, dynamic>> dejarDeSeguirUsuario(String targetUserId) async {
-    final response = await http.post(
+  static Future<Map<String, dynamic>> dejarDeSeguirUsuario(
+    String targetUserId,
+  ) async {
+    final response = await ApiClient.post(
       Uri.parse('$baseUrl/usuarios/$targetUserId/dejar-seguir'),
-      headers: {'Content-Type': 'application/json'},
     );
-
-    if (response.statusCode == 200) {
-      return json.decode(response.body) as Map<String, dynamic>;
-    } else {
-      throw Exception('Error al dejar de seguir usuario: ${response.body}');
-    }
+    return json.decode(response.body) as Map<String, dynamic>;
   }
 
   /// Obtener lista de seguidores (GET /usuarios/:id/seguidores)
   static Future<List<UsuarioResumen>> getSeguidores(String userId) async {
-    final response = await http.get(
+    final response = await ApiClient.get(
       Uri.parse('$baseUrl/usuarios/$userId/seguidores'),
     );
 
-    if (response.statusCode == 200) {
-      final decoded = json.decode(response.body);
-      List<dynamic> list = [];
-      if (decoded is Map && decoded.containsKey('seguidores')) {
-        list = decoded['seguidores'];
-      } else if (decoded is List) {
-        list = decoded;
-      }
-      return list
-          .map((item) => UsuarioResumen.fromJson(item as Map<String, dynamic>))
-          .toList();
-    } else {
-      throw Exception('Error al cargar seguidores: ${response.statusCode}');
-    }
+    final dataList = ApiResponse.extractList(
+      response.body,
+      listKey: 'seguidores',
+    );
+    return dataList
+        .map((item) => UsuarioResumen.fromJson(item as Map<String, dynamic>))
+        .toList();
   }
 
   /// Obtener lista de usuarios seguidos (GET /usuarios/:id/seguidos)
   static Future<List<UsuarioResumen>> getSeguidos(String userId) async {
-    final response = await http.get(
+    final response = await ApiClient.get(
       Uri.parse('$baseUrl/usuarios/$userId/seguidos'),
     );
 
-    if (response.statusCode == 200) {
-      final decoded = json.decode(response.body);
-      List<dynamic> list = [];
-      if (decoded is Map && decoded.containsKey('seguidos')) {
-        list = decoded['seguidos'];
-      } else if (decoded is List) {
-        list = decoded;
-      }
-      return list
-          .map((item) => UsuarioResumen.fromJson(item as Map<String, dynamic>))
-          .toList();
-    } else {
-      throw Exception('Error al cargar seguidos: ${response.statusCode}');
-    }
+    final dataList = ApiResponse.extractList(
+      response.body,
+      listKey: 'seguidos',
+    );
+    return dataList
+        .map((item) => UsuarioResumen.fromJson(item as Map<String, dynamic>))
+        .toList();
   }
 }

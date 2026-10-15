@@ -14,7 +14,7 @@ class IARegistro extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
-  /// 🔹 Valida un registro de fauna o flora usando IA
+  /// Valida un registro de fauna o flora usando IA
   Future<void> validarRegistro({
     required String nombreComun,
     required String nombreCientifico,
@@ -52,7 +52,7 @@ class IARegistro extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 🔹 Limpia resultados y errores
+  /// Limpia resultados y errores
   void limpiar() {
     _validacionResultado = null;
     _error = null;

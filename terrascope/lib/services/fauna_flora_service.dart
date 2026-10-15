@@ -1,253 +1,33 @@
 import 'dart:convert';
-import '../config/auth_http.dart' as http;
-import '../components/models/avistamiento_model.dart';
 
+import '../components/models/avistamiento_model.dart';
+import '../components/models/comentario.dart';
+import '../components/models/zona_frecuente.dart';
+import '../config/api_config.dart';
+import 'api_client.dart';
+import 'api_response.dart';
+
+/// Servicio unificado para operaciones de fauna y flora.
+///
+/// Consolida la lógica de los antiguos `FaunaFloraService` y
+/// `AvistamientoService` en un solo punto de acceso.
 class FaunaFloraService {
   final String baseUrl;
 
-  FaunaFloraService({required this.baseUrl});
+  FaunaFloraService({String? baseUrl})
+      : baseUrl = baseUrl ?? ApiConfig.baseUrl;
+
+  // --- Crear / Actualizar / Eliminar -----------------------------------
 
   /// Crear nuevo avistamiento
   Future<Avistamiento?> createFaunaFlora(Avistamiento data) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/fauna-flora'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(data.toJson()),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseData = json.decode(response.body);
-        final jsonData = responseData is Map && responseData.containsKey('data')
-            ? responseData['data']
-            : responseData;
-        return Avistamiento.fromJson(jsonData);
-      } else {
-        throw Exception('Error al crear avistamiento: ${response.statusCode}');
-      }
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  /// 🔹 Votar por un avistamiento (comunidad)
-  Future<void> votarAvistamiento(
-    String idAvistamiento, {
-    String? idUsuario,
-  }) async {
-    final url = Uri.parse('$baseUrl/fauna-flora/$idAvistamiento/votar');
-
-    try {
-      print("📡 Enviando voto comunidad → $url");
-      final response = await http.put(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          if (idUsuario != null && idUsuario.isNotEmpty) 'id_usuario': idUsuario,
-        }),
-      );
-
-      print("📬 Respuesta voto: [${response.statusCode}] ${response.body}");
-
-      if (response.statusCode != 200) {
-        throw Exception('Error al votar: ${response.statusCode}');
-      }
-    } catch (e) {
-      print("❌ Error en votarAvistamiento: $e");
-      rethrow;
-    }
-  }
-
-  /// 🔹 Validar avistamiento como experto
-  Future<void> validarComoExperto(
-    String idAvistamiento, {
-    String? idUsuario,
-    String? rol,
-  }) async {
-    final url = Uri.parse(
-      '$baseUrl/fauna-flora/$idAvistamiento/validar-experto',
+    final response = await ApiClient.post(
+      Uri.parse('$baseUrl/fauna-flora'),
+      body: json.encode(data.toJson()),
     );
 
-    try {
-      print("📡 Enviando validación experto → $url");
-      final response = await http.put(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          if (idUsuario != null && idUsuario.isNotEmpty) 'id_usuario': idUsuario,
-          if (rol != null && rol.isNotEmpty) 'rol': rol,
-        }),
-      );
-
-      print(
-        "📬 Respuesta validación experto: [${response.statusCode}] ${response.body}",
-      );
-
-      if (response.statusCode != 200) {
-        throw Exception(
-          'Error al validar como experto: ${response.statusCode}',
-        );
-      }
-    } catch (e) {
-      print("❌ Error en validarComoExperto: $e");
-      rethrow;
-    }
-  }
-
-  /// 🔹 Obtener estado de validación (incluye yaVoto y usuarios_validadores)
-  Future<Map<String, dynamic>?> getEstadoValidacion(
-    String idAvistamiento,
-  ) async {
-    final url = Uri.parse(
-      '$baseUrl/fauna-flora/$idAvistamiento/validacion',
-    );
-
-    try {
-      print("📡 GET estado validación → $url");
-
-      final response = await http.get(
-        url,
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      print(
-        "📬 Respuesta estado validación [${response.statusCode}]: ${response.body}",
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body) as Map<String, dynamic>;
-        return data;
-      } else {
-        throw Exception('Error al obtener estado: ${response.statusCode}');
-      }
-    } catch (e) {
-      print("❌ Error en getEstadoValidacion: $e");
-      rethrow;
-    }
-  }
-
-  /// Obtener todos los avistamientos
-  Future<List<Avistamiento>> getAllFaunaFlora() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/fauna-flora'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-
-        List<dynamic> dataList;
-
-        if (responseData is List) {
-          dataList = responseData;
-        } else if (responseData is Map && responseData.containsKey('data')) {
-          dataList = responseData['data'];
-        } else {
-          throw Exception('Formato de respuesta no reconocido');
-        }
-
-        return dataList
-            .map((json) => Avistamiento.fromJson(json as Map<String, dynamic>))
-            .toList();
-      } else {
-        throw Exception(
-          'Error al obtener avistamientos: ${response.statusCode}',
-        );
-      }
-    } catch (e) {
-      print('❌ Error en getAllFaunaFlora: $e');
-      rethrow;
-    }
-  }
-
-  /// Obtener avistamiento por ID
-  Future<Avistamiento?> getFaunaFloraById(String id) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/fauna-flora/$id'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-
-        final data = responseData is Map && responseData.containsKey('data')
-            ? responseData['data']
-            : responseData;
-
-        return Avistamiento.fromJson(data as Map<String, dynamic>);
-      } else if (response.statusCode == 404) {
-        return null;
-      } else {
-        throw Exception(
-          'Error al obtener avistamiento: ${response.statusCode}',
-        );
-      }
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  /// Obtener avistamientos cercanos por ubicación
-  Future<List<Avistamiento>> getFaunaFloraCerca(
-    double latitud,
-    double longitud,
-    double distanciaKm,
-  ) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/fauna-flora/cerca/$latitud/$longitud/$distanciaKm'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-
-        List<dynamic> dataList;
-        if (responseData is List) {
-          dataList = responseData;
-        } else if (responseData is Map && responseData.containsKey('data')) {
-          dataList = responseData['data'];
-        } else {
-          throw Exception('Formato de respuesta no reconocido');
-        }
-
-        return dataList
-            .map((json) => Avistamiento.fromJson(json as Map<String, dynamic>))
-            .toList();
-      } else {
-        throw Exception(
-          'Error al buscar avistamientos cercanos: ${response.statusCode}',
-        );
-      }
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  /// Agregar comentario a un avistamiento
-  Future<bool> addComentario(
-    String avistamientoId,
-    String comentario,
-  ) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/fauna-flora/$avistamientoId/comentarios'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'comentario': comentario,
-        }),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return true;
-      } else {
-        throw Exception('Error al agregar comentario: ${response.statusCode}');
-      }
-    } catch (e) {
-      rethrow;
-    }
+    final jsonData = ApiResponse.extractMap(response.body);
+    return Avistamiento.fromJson(jsonData);
   }
 
   /// Actualizar avistamiento
@@ -255,189 +35,215 @@ class FaunaFloraService {
     String id,
     Map<String, dynamic> updates,
   ) async {
-    try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/fauna-flora/$id'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(updates),
-      );
+    final response = await ApiClient.put(
+      Uri.parse('$baseUrl/fauna-flora/$id'),
+      body: json.encode(updates),
+    );
 
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        final jsonData = responseData is Map && responseData.containsKey('data')
-            ? responseData['data']
-            : responseData;
-        return Avistamiento.fromJson(jsonData as Map<String, dynamic>);
-      } else {
-        throw Exception(
-          'Error al actualizar avistamiento: ${response.statusCode}',
-        );
-      }
-    } catch (e) {
-      rethrow;
-    }
+    final jsonData = ApiResponse.extractMap(response.body);
+    return Avistamiento.fromJson(jsonData);
   }
 
   /// Eliminar avistamiento
   Future<bool> deleteFaunaFlora(String id) async {
-    try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/fauna-flora/$id'),
-        headers: {'Content-Type': 'application/json'},
-      );
+    final response = await ApiClient.delete(
+      Uri.parse('$baseUrl/fauna-flora/$id'),
+    );
+    return response.statusCode == 200;
+  }
 
-      if (response.statusCode == 200) {
-        return true;
-      } else {
-        throw Exception(
-          'Error al eliminar avistamiento: ${response.statusCode}',
-        );
-      }
-    } catch (e) {
-      rethrow;
+  // --- Consultas -------------------------------------------------------
+
+  /// Obtener todos los avistamientos, opcionalmente filtrados por [especie].
+  Future<List<Avistamiento>> getAllFaunaFlora({String? especie}) async {
+    String url = '$baseUrl/fauna-flora';
+    if (especie != null) {
+      url += '?categoria=$especie';
     }
+
+    final response = await ApiClient.get(Uri.parse(url));
+
+    final dataList = ApiResponse.extractList(response.body);
+    return dataList
+        .map((json) => Avistamiento.fromJson(json as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Obtener avistamiento por ID. Retorna `null` si no existe (404).
+  Future<Avistamiento?> getFaunaFloraById(String id) async {
+    final response = await ApiClient.get(
+      Uri.parse('$baseUrl/fauna-flora/$id'),
+      allowedCodes: [200, 404],
+    );
+
+    if (response.statusCode == 404) return null;
+
+    final jsonData = ApiResponse.extractMap(response.body);
+    return Avistamiento.fromJson(jsonData);
+  }
+
+  /// Obtener avistamientos cercanos por ubicacion
+  Future<List<Avistamiento>> getFaunaFloraCerca(
+    double latitud,
+    double longitud,
+    double distanciaKm,
+  ) async {
+    final response = await ApiClient.get(
+      Uri.parse('$baseUrl/fauna-flora/cerca/$latitud/$longitud/$distanciaKm'),
+    );
+
+    final dataList = ApiResponse.extractList(response.body);
+    return dataList
+        .map((json) => Avistamiento.fromJson(json as Map<String, dynamic>))
+        .toList();
   }
 
   /// Obtener avistamientos por especie
   Future<List<Avistamiento>> getFaunaFloraByEspecie(String especie) async {
-    try {
-      final response = await http.get(
-        Uri.parse(
-          '$baseUrl/fauna-flora/especie/${Uri.encodeComponent(especie)}',
-        ),
-        headers: {'Content-Type': 'application/json'},
-      );
+    final response = await ApiClient.get(
+      Uri.parse(
+        '$baseUrl/fauna-flora/especie/${Uri.encodeComponent(especie)}',
+      ),
+    );
 
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-
-        List<dynamic> dataList;
-        if (responseData is List) {
-          dataList = responseData;
-        } else if (responseData is Map && responseData.containsKey('data')) {
-          dataList = responseData['data'];
-        } else {
-          throw Exception('Formato de respuesta no reconocido');
-        }
-
-        return dataList
-            .map((json) => Avistamiento.fromJson(json as Map<String, dynamic>))
-            .toList();
-      } else {
-        throw Exception(
-          'Error al obtener avistamientos por especie: ${response.statusCode}',
-        );
-      }
-    } catch (e) {
-      rethrow;
-    }
+    final dataList = ApiResponse.extractList(response.body);
+    return dataList
+        .map((json) => Avistamiento.fromJson(json as Map<String, dynamic>))
+        .toList();
   }
 
   /// Obtener avistamientos por usuario
   Future<List<Avistamiento>> getFaunaFloraByUsuario(
     String nombreUsuario,
   ) async {
-    try {
-      final response = await http.get(
-        Uri.parse(
-          '$baseUrl/fauna-flora/usuario/${Uri.encodeComponent(nombreUsuario)}',
-        ),
-        headers: {'Content-Type': 'application/json'},
-      );
+    final response = await ApiClient.get(
+      Uri.parse(
+        '$baseUrl/fauna-flora/usuario/${Uri.encodeComponent(nombreUsuario)}',
+      ),
+    );
 
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-
-        List<dynamic> dataList;
-        if (responseData is List) {
-          dataList = responseData;
-        } else if (responseData is Map && responseData.containsKey('data')) {
-          dataList = responseData['data'];
-        } else {
-          throw Exception('Formato de respuesta no reconocido');
-        }
-
-        return dataList
-            .map((json) => Avistamiento.fromJson(json as Map<String, dynamic>))
-            .toList();
-      } else {
-        throw Exception(
-          'Error al obtener avistamientos del usuario: ${response.statusCode}',
-        );
-      }
-    } catch (e) {
-      rethrow;
-    }
+    final dataList = ApiResponse.extractList(response.body);
+    return dataList
+        .map((json) => Avistamiento.fromJson(json as Map<String, dynamic>))
+        .toList();
   }
 
-  /// Alternar Like en un avistamiento (POST /fauna-flora/:id/like)
-  Future<Map<String, dynamic>> toggleLike(String avistamientoId) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/fauna-flora/$avistamientoId/like'),
-        headers: {'Content-Type': 'application/json'},
-      );
+  /// Buscar avistamientos por texto (filtra localmente)
+  Future<List<Avistamiento>> searchAvistamientos(String query) async {
+    final avistamientos = await getAllFaunaFlora();
+    final queryLower = query.toLowerCase();
 
-      if (response.statusCode == 200) {
-        return json.decode(response.body) as Map<String, dynamic>;
-      } else {
-        throw Exception('Error al alternar like: ${response.statusCode}');
-      }
-    } catch (e) {
-      rethrow;
-    }
+    return avistamientos.where((avistamiento) {
+      return avistamiento.nombreComun.toLowerCase().contains(queryLower) ||
+          avistamiento.nombreCientifico.toLowerCase().contains(queryLower) ||
+          avistamiento.especie.toLowerCase().contains(queryLower);
+    }).toList();
   }
+
+  // --- Feed ------------------------------------------------------------
 
   /// Obtener el feed de usuarios seguidos (GET /fauna-flora/feed)
   Future<List<Avistamiento>> getFeed() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/fauna-flora/feed'),
-        headers: {'Content-Type': 'application/json'},
-      );
+    final response = await ApiClient.get(
+      Uri.parse('$baseUrl/fauna-flora/feed'),
+    );
 
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        List<dynamic> dataList = [];
-        if (responseData is Map && responseData.containsKey('feed')) {
-          dataList = responseData['feed'];
-        } else if (responseData is List) {
-          dataList = responseData;
-        }
-
-        return dataList
-            .map((json) => Avistamiento.fromJson(json as Map<String, dynamic>))
-            .toList();
-      } else {
-        throw Exception('Error al obtener feed: ${response.statusCode}');
-      }
-    } catch (e) {
-      rethrow;
-    }
+    final dataList = ApiResponse.extractList(response.body, listKey: 'feed');
+    return dataList
+        .map((json) => Avistamiento.fromJson(json as Map<String, dynamic>))
+        .toList();
   }
 
-  /// Eliminar comentario con moderación (DELETE /fauna-flora/:id/comentarios/:comentarioId)
+  /// Obtener zonas frecuentes de avistamientos
+  Future<List<ZonaFrecuente>> getZonasFrecuentes() async {
+    final response = await ApiClient.get(
+      Uri.parse('$baseUrl/fauna-flora/frequent-zones'),
+    );
+
+    final dataList = ApiResponse.extractList(response.body);
+    return dataList
+        .map((json) => ZonaFrecuente.fromJson(json as Map<String, dynamic>))
+        .toList();
+  }
+
+  // --- Interacciones sociales ------------------------------------------
+
+  /// Alternar Like en un avistamiento (POST /fauna-flora/:id/like)
+  Future<Map<String, dynamic>> toggleLike(String avistamientoId) async {
+    final response = await ApiClient.post(
+      Uri.parse('$baseUrl/fauna-flora/$avistamientoId/like'),
+    );
+    return json.decode(response.body) as Map<String, dynamic>;
+  }
+
+  /// Agregar comentario a un avistamiento
+  Future<Comentario?> addComentario(
+    String avistamientoId,
+    String comentario,
+  ) async {
+    final response = await ApiClient.post(
+      Uri.parse('$baseUrl/fauna-flora/$avistamientoId/comentarios'),
+      body: json.encode({'comentario': comentario}),
+      allowedCodes: [200, 201],
+    );
+
+    final decoded = json.decode(response.body);
+    if (decoded is Map && decoded.containsKey('comentario')) {
+      return Comentario.fromJson(decoded['comentario']);
+    }
+    return null;
+  }
+
+  /// Eliminar comentario con moderacion
   Future<bool> deleteComentario(
     String avistamientoId,
     String comentarioId,
   ) async {
-    try {
-      final response = await http.delete(
-        Uri.parse(
-          '$baseUrl/fauna-flora/$avistamientoId/comentarios/$comentarioId',
-        ),
-        headers: {'Content-Type': 'application/json'},
-      );
+    final response = await ApiClient.delete(
+      Uri.parse(
+        '$baseUrl/fauna-flora/$avistamientoId/comentarios/$comentarioId',
+      ),
+    );
+    return response.statusCode == 200;
+  }
 
-      if (response.statusCode == 200) {
-        return true;
-      } else if (response.statusCode == 403) {
-        throw Exception('No tienes permisos para eliminar este comentario');
-      } else {
-        throw Exception('Error al eliminar comentario: ${response.statusCode}');
-      }
-    } catch (e) {
-      rethrow;
-    }
+  // --- Validacion ------------------------------------------------------
+
+  /// Votar por un avistamiento (comunidad)
+  Future<void> votarAvistamiento(
+    String idAvistamiento, {
+    String? idUsuario,
+  }) async {
+    await ApiClient.put(
+      Uri.parse('$baseUrl/fauna-flora/$idAvistamiento/votar'),
+      body: json.encode({
+        if (idUsuario != null && idUsuario.isNotEmpty) 'id_usuario': idUsuario,
+      }),
+    );
+  }
+
+  /// Validar avistamiento como experto
+  Future<void> validarComoExperto(
+    String idAvistamiento, {
+    String? idUsuario,
+    String? rol,
+  }) async {
+    await ApiClient.put(
+      Uri.parse('$baseUrl/fauna-flora/$idAvistamiento/validar-experto'),
+      body: json.encode({
+        if (idUsuario != null && idUsuario.isNotEmpty) 'id_usuario': idUsuario,
+        if (rol != null && rol.isNotEmpty) 'rol': rol,
+      }),
+    );
+  }
+
+  /// Obtener estado de validacion (incluye yaVoto y usuarios_validadores)
+  Future<Map<String, dynamic>?> getEstadoValidacion(
+    String idAvistamiento,
+  ) async {
+    final response = await ApiClient.get(
+      Uri.parse('$baseUrl/fauna-flora/$idAvistamiento/validacion'),
+    );
+    return json.decode(response.body) as Map<String, dynamic>;
   }
 }

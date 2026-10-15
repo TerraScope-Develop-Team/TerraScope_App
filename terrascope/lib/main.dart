@@ -94,6 +94,9 @@ class _MyAppState extends State<MyApp> {
         final avistamiento = await AvistamientoService.getAvistamientoById(
           targetId,
         );
+        if (avistamiento == null) {
+          throw Exception('El avistamiento ya no está disponible');
+        }
         final session = await SessionService().getUserData();
         navigator.push(
           MaterialPageRoute(
