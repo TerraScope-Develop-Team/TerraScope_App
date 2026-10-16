@@ -28,110 +28,92 @@ class AvistamientoValidacionProvider with ChangeNotifier, RequestStateMixin {
     log("Avistamientos cargados: ${_avistamientos.length}");
   });
 
-  ///  Votar validación comunitaria
-  Future<void> votar(String idAvistamiento) async {
-    try {
-      log(" Iniciando proceso de voto para avistamiento $idAvistamiento...");
-      final userData = await _sessionService.getUserData();
+  /// Votar validación comunitaria
+  Future<void> votar(String idAvistamiento) => executeRequest(() async {
+    log("Iniciando proceso de voto para avistamiento $idAvistamiento...");
+    final userData = await _sessionService.getUserData();
 
-      // Verificar datos en sesión
-      log("Datos de sesión al votar: $userData");
+    // Verificar datos en sesión
+    log("Datos de sesión al votar: $userData");
 
-      if (userData == null || userData['_id'] == null) {
-        throw Exception(
-          ' No se encontró el usuario en sesión o falta el _id',
-        );
-      }
-
-      final idUsuario = userData['_id'];
-      log(
-        " Enviando voto de usuario $idUsuario  avistamiento $idAvistamiento",
+    final idUsuario = userData?['_id'] ?? userData?['id'];
+    if (idUsuario == null) {
+      throw Exception(
+        'No se encontró el usuario en sesión o falta el _id',
       );
-
-      await _service.votarAvistamiento(idAvistamiento, idUsuario: idUsuario.toString());
-
-      log("Voto enviado correctamente. Recargando lista...");
-      await cargarAvistamientos();
-    } catch (e) {
-      _error = 'Error al votar: $e';
-      log("$_error");
-      notifyListeners();
     }
-  }
+
+    log(
+      "Enviando voto de usuario $idUsuario avistamiento $idAvistamiento",
+    );
+
+    await _service.votarAvistamiento(
+      idAvistamiento,
+      idUsuario: idUsuario.toString(),
+    );
+
+    log("Voto enviado correctamente. Recargando lista...");
+    _avistamientos = await _service.getAllFaunaFlora();
+  });
 
   /// Validar avistamiento como experto (solo Administrador o Investigador)
-  Future<void> validarComoExperto(String idAvistamiento) async {
-    try {
-      log(
-        " Iniciando validación de experto para avistamiento $idAvistamiento...",
-      );
-      final userData = await _sessionService.getUserData();
-
-      // Mostrar datos completos del usuario
-      log("Datos de sesión al validar como experto: $userData");
-
-      if (userData == null ||
-          userData['_id'] == null ||
-          userData['rol'] == null) {
-        throw Exception(
-          ' No se encontró información válida de usuario o rol',
+  Future<void> validarComoExperto(String idAvistamiento) =>
+      executeRequest(() async {
+        log(
+          "Iniciando validación de experto para avistamiento $idAvistamiento...",
         );
-      }
+        final userData = await _sessionService.getUserData();
 
-      final idUsuario = userData['_id'];
-      final rol = userData['rol'];
-      log("Enviando validación como experto  usuario $idUsuario ($rol)");
+        // Mostrar datos completos del usuario
+        log("Datos de sesión al validar como experto: $userData");
 
-      await _service.validarComoExperto(
-        idAvistamiento,
-        idUsuario: idUsuario.toString(),
-        rol: rol.toString(),
-      );
+        final idUsuario = userData?['_id'] ?? userData?['id'];
+        final rol = userData?['rol'];
+        if (idUsuario == null || rol == null) {
+          throw Exception(
+            'No se encontró información válida de usuario o rol',
+          );
+        }
 
-      log("Validación por experto exitosa. Recargando lista...");
-      await cargarAvistamientos();
-    } catch (e) {
-      _error = 'Error al validar como experto: $e';
-      log("$_error");
-      notifyListeners();
-    }
-  }
+        log("Enviando validación como experto usuario $idUsuario ($rol)");
+
+        await _service.validarComoExperto(
+          idAvistamiento,
+          idUsuario: idUsuario.toString(),
+          rol: rol.toString(),
+        );
+
+        log("Validación por experto exitosa. Recargando lista...");
+        _avistamientos = await _service.getAllFaunaFlora();
+      });
 
   /// Obtener estado actual de validación (con yaVoto)
   Future<Map<String, dynamic>?> obtenerEstadoValidacion(
     String idAvistamiento,
-  ) async {
-    try {
-      log("Consultando estado de validación para $idAvistamiento...");
+  ) => executeRequest<Map<String, dynamic>?>(() async {
+    log("Consultando estado de validación para $idAvistamiento...");
 
-      final userData = await _sessionService.getUserData();
-      if (userData == null || userData['_id'] == null) {
-        throw Exception(' No se encontró usuario en sesión');
-      }
-
-      final idUsuario = userData['_id'];
-      log("Usuario en sesión: $idUsuario");
-
-      // Llamada al service pasando userId
-      final estado = await _service.getEstadoValidacion(idAvistamiento);
-
-      if (estado != null) {
-        final yaVoto = estado['yaVoto'] ?? false;
-        final votos = estado['votos_comunidad'] ?? 0;
-        final requeridos = estado['requeridos_comunidad'] ?? 0;
-        final validado = estado['validado_por_experto'] ?? false;
-
-        log(
-          " Estado recibido  votos: $votos, requeridos: $requeridos, validado: $validado, yaVoto: $yaVoto",
-        );
-      }
-
-      return estado;
-    } catch (e) {
-      _error = 'Error al obtener validación: $e';
-      log("$_error");
-      notifyListeners();
-      return null;
+    final userData = await _sessionService.getUserData();
+    final idUsuario = userData?['_id'] ?? userData?['id'];
+    if (idUsuario == null) {
+      throw Exception('No se encontró usuario en sesión');
     }
-  }
+
+    log("Usuario en sesión: $idUsuario");
+
+    final estado = await _service.getEstadoValidacion(idAvistamiento);
+
+    if (estado != null) {
+      final yaVoto = estado['yaVoto'] ?? false;
+      final votos = estado['votos_comunidad'] ?? 0;
+      final requeridos = estado['requeridos_comunidad'] ?? 0;
+      final validado = estado['validado_por_experto'] ?? false;
+
+      log(
+        "Estado recibido votos: $votos, requeridos: $requeridos, validado: $validado, yaVoto: $yaVoto",
+      );
+    }
+
+    return estado;
+  });
 }
