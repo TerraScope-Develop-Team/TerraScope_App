@@ -50,17 +50,19 @@ class Avistamiento {
   }) : validacion = validacion ?? Validacion();
 
   factory Avistamiento.fromJson(Map<String, dynamic> json) {
-    final rawLikes = (json['likes'] as List?)
-            ?.map((e) => e.toString())
-            .toList() ??
+    final rawLikes =
+        (json['likes'] as List?)?.map((e) => e.toString()).toList() ??
         <String>[];
 
     final calculatedLikes = json['total_likes'] is num
         ? (json['total_likes'] as num).toInt()
         : rawLikes.length;
 
-    final parsedComentarios = (json['comentarios'] as List?)
-            ?.map((c) => Comentario.fromJson(c is Map<String, dynamic> ? c : {}))
+    final parsedComentarios =
+        (json['comentarios'] as List?)
+            ?.map(
+              (c) => Comentario.fromJson(c is Map<String, dynamic> ? c : {}),
+            )
             .toList() ??
         <Comentario>[];
 
@@ -169,6 +171,58 @@ class Avistamiento {
   @override
   String toString() {
     return 'Avistamiento(id: $id, usuario: $nombreUsuario, likes: $totalLikes, comentarios: $totalComentarios)';
+  }
+}
+
+class AvistamientoRecomendacion {
+  final Avistamiento avistamiento;
+  final int? distanciaMetros;
+
+  const AvistamientoRecomendacion({
+    required this.avistamiento,
+    this.distanciaMetros,
+  });
+
+  factory AvistamientoRecomendacion.fromJson(Map<String, dynamic> json) {
+    final distancia = json['distancia_metros'];
+    return AvistamientoRecomendacion(
+      avistamiento: Avistamiento.fromJson(json),
+      distanciaMetros: distancia is num ? distancia.toInt() : null,
+    );
+  }
+}
+
+class RecomendacionesAvistamiento {
+  final String criterio;
+  final int radioMetros;
+  final List<AvistamientoRecomendacion> recomendaciones;
+
+  const RecomendacionesAvistamiento({
+    required this.criterio,
+    required this.radioMetros,
+    required this.recomendaciones,
+  });
+
+  factory RecomendacionesAvistamiento.fromJson(Map<String, dynamic> json) {
+    final rawRecomendaciones = json['recomendaciones'];
+    final recomendaciones = rawRecomendaciones is List
+        ? rawRecomendaciones
+              .whereType<Map>()
+              .map(
+                (item) => AvistamientoRecomendacion.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .toList()
+        : <AvistamientoRecomendacion>[];
+
+    return RecomendacionesAvistamiento(
+      criterio: json['criterio']?.toString() ?? 'especie',
+      radioMetros: json['radio_metros'] is num
+          ? (json['radio_metros'] as num).toInt()
+          : 1_000,
+      recomendaciones: recomendaciones,
+    );
   }
 }
 
