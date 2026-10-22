@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -7,8 +8,9 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../config/api_config.dart';
-import '../config/auth_http.dart' as http;
+import 'api_client.dart';
 import 'session_service.dart';
 
 enum NotificationType { info, success, warning, error }
@@ -20,6 +22,7 @@ class AppNotification {
   final NotificationType type;
   final Duration duration;
   final VoidCallback? onTap;
+  final Map<String, dynamic>? extra;
 
   AppNotification({
     required this.id,
@@ -28,6 +31,7 @@ class AppNotification {
     this.type = NotificationType.info,
     this.duration = const Duration(seconds: 4),
     this.onTap,
+    this.extra,
   });
 }
 
@@ -48,27 +52,35 @@ class NotificationService with ChangeNotifier {
   bool _localNotificationsReady = false;
   bool _permissionPromptInProgress = false;
 
+  /// IDs de alertas de fauna peligrosa marcadas como no leidas.
+  final Set<String> _unreadDangerousAlertIds = {};
+
   List<AppNotification> get notifications => List.unmodifiable(_notifications);
+
+  /// Cantidad de alertas de fauna peligrosa sin leer.
   int get unreadDangerousAlertCount => _unreadDangerousAlertIds.length;
 
+  /// Establece las alertas de fauna peligrosa no leídas.
   void setUnreadDangerousAlerts(Iterable<String> alertIds) {
-    _unreadDangerousAlertIds
-      ..clear()
-      ..addAll(alertIds);
+    _unreadDangerousAlertIds.clear();
+    _unreadDangerousAlertIds.addAll(alertIds);
     notifyListeners();
   }
 
+  /// Registra una alerta de fauna peligrosa como no leida.
   void registerUnreadDangerousAlert(String alertId) {
-    if (_unreadDangerousAlertIds.add(alertId)) {
-      notifyListeners();
-    }
+    _unreadDangerousAlertIds.add(alertId);
+    notifyListeners();
   }
 
-  void markDangerousAlertRead(String alertId) {
-    if (_unreadDangerousAlertIds.remove(alertId)) {
-      notifyListeners();
-    }
+  /// Marca una alerta de fauna peligrosa como leida.
+  void markDangerousAlertAsRead(String alertId) {
+    _unreadDangerousAlertIds.remove(alertId);
+    notifyListeners();
   }
+
+  /// Alias compatible para marcar alerta de fauna como leída.
+  void markDangerousAlertRead(String alertId) => markDangerousAlertAsRead(alertId);
 
   Future<void> initialize({
     required Future<void> Function(Map<String, dynamic>) onNotificationTap,
@@ -76,7 +88,7 @@ class NotificationService with ChangeNotifier {
     if (_initialized) return;
     if (Firebase.apps.isEmpty) {
       debugPrint(
-        'FCM no está disponible: falta configurar Firebase para esta app.',
+        'FCM no esta disponible: falta configurar Firebase para esta app.',
       );
       return;
     }
@@ -107,7 +119,7 @@ class NotificationService with ChangeNotifier {
       _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
         (message) => _openRemoteNotification(message.data),
         onError: (Object error) {
-          debugPrint('Error abriendo una notificación FCM: $error');
+          debugPrint('Error abriendo una notificacion FCM: $error');
         },
       );
       _tokenSubscription = messaging.onTokenRefresh.listen(
@@ -138,7 +150,7 @@ class NotificationService with ChangeNotifier {
     } catch (error, stackTrace) {
       _initialized = false;
       debugPrint(
-        'No se pudo inicializar la recepción de notificaciones FCM: $error',
+        'No se pudo inicializar la recepcion de notificaciones FCM: $error',
       );
       debugPrintStack(stackTrace: stackTrace);
     }
@@ -159,7 +171,7 @@ class NotificationService with ChangeNotifier {
           AppNotification(
             id: 'push_firebase_not_configured',
             title: 'Notificaciones no disponibles',
-            message: 'Firebase aún no está configurado para esta aplicación.',
+            message: 'Firebase aun no esta configurado para esta aplicacion.',
             type: NotificationType.warning,
           ),
         );
@@ -176,7 +188,7 @@ class NotificationService with ChangeNotifier {
             AppNotification(
               id: 'push_registration_failed',
               title: 'No se pudieron activar',
-              message: 'Inténtalo de nuevo más tarde.',
+              message: 'Intentalo de nuevo mas tarde.',
               type: NotificationType.error,
             ),
           );
@@ -191,8 +203,8 @@ class NotificationService with ChangeNotifier {
         builder: (dialogContext) => AlertDialog(
           title: const Text('Recibe avisos de TerraScope'),
           content: const Text(
-            'Podemos avisarte cuando un reto esté por vencer y sobre actividad '
-            'en tus avistamientos. ¿Quieres activar las notificaciones?',
+            'Podemos avisarte cuando un reto este por vencer y sobre actividad '
+            'en tus avistamientos. Quieres activar las notificaciones?',
           ),
           actions: [
             TextButton(
@@ -221,7 +233,7 @@ class NotificationService with ChangeNotifier {
             id: 'push_permission_denied',
             title: 'Notificaciones desactivadas',
             message:
-                'Puedes activarlas después desde los ajustes del dispositivo.',
+                'Puedes activarlas despues desde los ajustes del dispositivo.',
             type: NotificationType.warning,
           ),
         );
@@ -234,7 +246,7 @@ class NotificationService with ChangeNotifier {
           AppNotification(
             id: 'push_registration_failed',
             title: 'No se pudieron activar',
-            message: 'Inténtalo de nuevo más tarde.',
+            message: 'Intentalo de nuevo mas tarde.',
             type: NotificationType.error,
           ),
         );
@@ -246,7 +258,7 @@ class NotificationService with ChangeNotifier {
         AppNotification(
           id: 'push_setup_failed',
           title: 'No se pudieron activar',
-          message: 'Ocurrió un error al configurar las notificaciones.',
+          message: 'Ocurrio un error al configurar las notificaciones.',
           type: NotificationType.error,
         ),
       );
@@ -277,7 +289,7 @@ class NotificationService with ChangeNotifier {
             const AndroidNotificationChannel(
               _foregroundChannelId,
               'Notificaciones de TerraScope',
-              description: 'Avisos recibidos mientras la app está abierta.',
+              description: 'Avisos recibidos mientras la app esta abierta.',
               importance: Importance.high,
             ),
           );
@@ -294,7 +306,7 @@ class NotificationService with ChangeNotifier {
     final notification = message.notification;
     if (notification == null) {
       debugPrint(
-        'FCM en primer plano llegó sin título ni cuerpo de notificación.',
+        'FCM en primer plano llego sin titulo ni cuerpo de notificacion.',
       );
       return;
     }
@@ -316,7 +328,7 @@ class NotificationService with ChangeNotifier {
     );
 
     if (!_localNotificationsReady) {
-      debugPrint('FCM llegó, pero las notificaciones nativas no están listas.');
+      debugPrint('FCM llego, pero las notificaciones nativas no estan listas.');
       return;
     }
 
@@ -330,7 +342,7 @@ class NotificationService with ChangeNotifier {
             _foregroundChannelId,
             'Notificaciones de TerraScope',
             channelDescription:
-                'Avisos recibidos mientras la app está abierta.',
+                'Avisos recibidos mientras la app esta abierta.',
             importance: Importance.high,
             priority: Priority.high,
             icon: 'ic_stat_notification',
@@ -356,7 +368,7 @@ class NotificationService with ChangeNotifier {
     try {
       final decoded = json.decode(payload);
       if (decoded is! Map) {
-        debugPrint('El destino del aviso nativo no tiene formato válido.');
+        debugPrint('El destino del aviso nativo no tiene formato valido.');
         return;
       }
       unawaited(_openRemoteNotification(Map<String, dynamic>.from(decoded)));
@@ -383,7 +395,7 @@ class NotificationService with ChangeNotifier {
     try {
       final userData = await _sessionService.getUserData();
       if (userData == null) {
-        debugPrint('No se registra el token FCM: no hay una sesión activa.');
+        debugPrint('No se registra el token FCM: no hay una sesion activa.');
         return false;
       }
 
@@ -396,19 +408,19 @@ class NotificationService with ChangeNotifier {
         TargetPlatform.fuchsia => 'fuchsia',
       };
       final location = await _getAvailableLocation();
-      final response = await http.post(
+      final response = await ApiClient.post(
         Uri.parse('${ApiConfig.baseUrl}/notificaciones/dispositivos'),
-        headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'token': token,
           'plataforma': platform,
           ...location,
         }),
+        allowedCodes: [200, 201],
       );
 
-      if (response.statusCode != 200) {
+      if (response.statusCode != 200 && response.statusCode != 201) {
         debugPrint(
-          'El backend rechazó el registro del token FCM '
+          'El backend rechazo el registro del token FCM '
           '(${response.statusCode}): ${response.body}',
         );
         return false;
@@ -443,7 +455,7 @@ class NotificationService with ChangeNotifier {
         'precision_ubicacion_m': position.accuracy,
       };
     } catch (error) {
-      debugPrint('No se pudo obtener una ubicación para FCM: $error');
+      debugPrint('No se pudo obtener una ubicacion para FCM: $error');
       return {};
     }
   }

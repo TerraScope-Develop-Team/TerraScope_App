@@ -654,7 +654,7 @@ class _HomePageState extends State<HomePage> {
       color: primaryColor,
       child: Column(
         children: [
-          // 🔹 Selector de Feed: Explorar todo vs Siguiendo
+          // Selector de Feed: Explorar todo vs Siguiendo
           Container(
             margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
@@ -828,17 +828,17 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
     _cargarUsuarioYValidacion();
   }
 
-  /// 🔹 Carga usuario y validación en orden
+  /// Carga usuario y validación en orden
   Future<void> _cargarUsuarioYValidacion() async {
     await _cargarUsuario();
     await _cargarEstadoValidacion();
   }
 
-  /// 🔹 Cargar sesión de usuario
+  /// Cargar sesión de usuario
   Future<void> _cargarUsuario() async {
     final userData = await widget.sessionService.getUserData();
 
-    print("🧠 [DEBUG] Datos de sesión obtenidos → $userData");
+    print("[DEBUG] Datos de sesión obtenidos  $userData");
 
     if (mounted && userData != null) {
       setState(() {
@@ -849,9 +849,9 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
         }
       });
 
-      print("👤 [DEBUG] Usuario actual → ID: $_idUsuario | Rol: $_rolUsuario");
+      print("[DEBUG] Usuario actual  ID: $_idUsuario | Rol: $_rolUsuario");
     } else {
-      print("⚠️ [DEBUG] No hay sesión activa o los datos son nulos.");
+      print(" [DEBUG] No hay sesión activa o los datos son nulos.");
     }
   }
 
@@ -888,11 +888,11 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
     }
   }
 
-  /// 🔹 Cargar estado de validación
+  /// Cargar estado de validación
   Future<void> _cargarEstadoValidacion() async {
     if (widget.data.id.isEmpty) {
       print(
-        "⚠️ [DEBUG] ID de avistamiento vacío, no se puede cargar validación.",
+        " [DEBUG] ID de avistamiento vacío, no se puede cargar validación.",
       );
       return;
     }
@@ -900,7 +900,7 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
     setState(() => _isLoadingValidacion = true);
     try {
       final estado = await widget.service.getEstadoValidacion(widget.data.id);
-      print("📋 [DEBUG] Estado de validación recibido → $estado");
+      print("[DEBUG] Estado de validación recibido  $estado");
 
       if (mounted) {
         setState(() {
@@ -909,48 +909,48 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
         });
       }
     } catch (e) {
-      print('❌ Error al cargar validación: $e');
+      print('Error al cargar validación: $e');
     } finally {
       if (mounted) setState(() => _isLoadingValidacion = false);
     }
   }
 
-  /// 🔹 Votar como comunidad
+  /// Votar como comunidad
   Future<void> _votar() async {
     if (_idUsuario.isEmpty) {
-      print("⚠️ [DEBUG] No se puede votar: ID de usuario vacío.");
+      print(" [DEBUG] No se puede votar: ID de usuario vacío.");
       return;
     }
 
     setState(() => _isLoadingValidacion = true);
     try {
       print(
-        "📨 [DEBUG] Enviando voto de usuario $_idUsuario para ${widget.data.id}",
+        " [DEBUG] Enviando voto de usuario $_idUsuario para ${widget.data.id}",
       );
       await widget.service.votarAvistamiento(
         widget.data.id,
         idUsuario: _idUsuario,
       );
     } catch (e) {
-      // ⚠️ Aquí capturamos el error 400 y seguimos
+      //  Aquí capturamos el error 400 y seguimos
       if (e.toString().contains('400')) {
-        print('⚠️ Usuario ya votó, actualizando estado de validación...');
+        print(' Usuario ya votó, actualizando estado de validación...');
       } else {
-        print('❌ Error al votar: $e');
+        print('Error al votar: $e');
       }
     } finally {
-      // 🔹 Siempre recargamos estado de validación
+      // Siempre recargamos estado de validación
       await _cargarEstadoValidacion();
       if (mounted) setState(() => _isLoadingValidacion = false);
     }
   }
 
-  /// 🔹 Validar como experto
+  /// Validar como experto
   Future<void> _validarComoExperto() async {
     if (_idUsuario.isEmpty) return;
     setState(() => _isLoadingValidacion = true);
     try {
-      print("👨‍🔬 [DEBUG] Validación experta por $_rolUsuario ($_idUsuario)");
+      print("‍ [DEBUG] Validación experta por $_rolUsuario ($_idUsuario)");
       await widget.service.validarComoExperto(
         widget.data.id,
         idUsuario: _idUsuario,
@@ -958,7 +958,7 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
       );
       await _cargarEstadoValidacion();
     } catch (e) {
-      print('❌ Error al validar como experto: $e');
+      print('Error al validar como experto: $e');
     } finally {
       if (mounted) setState(() => _isLoadingValidacion = false);
     }
@@ -1104,10 +1104,10 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
     final validado = _estadoValidacion?['validado_por_experto'] ?? false;
     final yaVoto = _estadoValidacion?['yaVoto'] ?? false;
 
-    // 🔹 Logs para depuración
-    print("🧠 Usuario: $_idUsuario | Rol: $_rolUsuario");
+    // Logs para depuración
+    print("Usuario: $_idUsuario | Rol: $_rolUsuario");
     print(
-      "📊 Estado validación → votos: $votos, requeridos: $requeridos, validado: $validado",
+      " Estado validación  votos: $votos, requeridos: $requeridos, validado: $validado",
     );
 
     return Card(
@@ -1118,7 +1118,7 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 🔹 Header con usuario
+          // Header con usuario
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: Row(
@@ -1176,7 +1176,7 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
             ),
           ),
 
-          // 🔹 Imagen del avistamiento
+          // Imagen del avistamiento
           GestureDetector(
             onTap: widget.onTap,
             child: Container(
@@ -1194,7 +1194,7 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
             ),
           ),
 
-          // 🔹 Barra de acciones sociales (Like, Comentarios)
+          // Barra de acciones sociales (Like, Comentarios)
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 16.0,
@@ -1273,7 +1273,7 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
             ),
           ),
 
-          // 🔹 Información general
+          // Información general
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -1311,7 +1311,7 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
                 ),
                 const SizedBox(height: 12),
 
-                // 🔹 Sección de validación y votos
+                // Sección de validación y votos
                 _isLoadingValidacion
                     ? const Padding(
                         padding: EdgeInsets.symmetric(vertical: 16.0),
@@ -1408,9 +1408,9 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
                               )
                             : Column(
                                 mainAxisSize:
-                                    MainAxisSize.min, // 👈 CRÍTICO para scroll
+                                    MainAxisSize.min, // CRÍTICO para scroll
                                 crossAxisAlignment: CrossAxisAlignment
-                                    .stretch, // 👈 Evita saltos
+                                    .stretch, // Evita saltos
                                 children: [
                                   Row(
                                     mainAxisSize: MainAxisSize.max,
@@ -1536,7 +1536,7 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
 
                 const SizedBox(height: 16),
 
-                // 🔹 Botón de detalle
+                // Botón de detalle
                 Align(
                   alignment: Alignment.centerRight,
                   child: ElevatedButton(
@@ -1568,7 +1568,7 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
 
                 const SizedBox(height: 16),
 
-                // 🔹 Comentarios
+                // Comentarios
                 Text(
                   'Comentarios:',
                   style: TextStyle(

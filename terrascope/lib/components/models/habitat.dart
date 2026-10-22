@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 // components/models/habitat.dart
 class Habitat {
   final String idHabitat;
@@ -22,8 +24,7 @@ class Habitat {
     final nombre = json['nombre_habitat'] ?? 'Sin nombre';
     final descripcion = json['descripcion_habitat'] ?? 'Sin descripción';
     
-    // Debug
-    print('🔍 Habitat.fromJson - _id: ${json['_id']}, ID capturado: "$id"');
+    debugPrint('Habitat.fromJson - _id: ${json['_id']}, ID capturado: "$id"');
     
     return Habitat(
       idHabitat: id,

@@ -7,6 +7,7 @@ import '../models/avistamiento_model.dart';
 import '../models/comentario.dart';
 import '../screens/profile_page.dart';
 import '../../services/avistamiento_service.dart';
+import '../../services/fauna_flora_service.dart';
 import '../../services/session_service.dart';
 import '../../services/theme_service.dart';
 
@@ -37,6 +38,10 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
   bool _isTogglingLike = false;
   String? _currentUserId;
   String? _currentUserRol;
+  final FaunaFloraService _faunaFloraService = FaunaFloraService();
+  bool _isLoadingRecommendations = true;
+  String? _recommendationsError;
+  RecomendacionesAvistamiento? _recommendationResponse;
 
   @override
   void initState() {
@@ -45,6 +50,34 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
     _totalLikes = widget.avistamiento.totalLikes;
     _userHasLiked = widget.avistamiento.userHasLiked;
     _loadCurrentUser();
+    _loadRecommendations();
+  }
+
+  Future<void> _loadRecommendations({bool retry = false}) async {
+    if (retry) {
+      setState(() {
+        _isLoadingRecommendations = true;
+        _recommendationsError = null;
+      });
+    }
+
+    try {
+      final result = await _faunaFloraService.getRecomendacionesAvistamiento(
+        widget.avistamiento.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        _recommendationResponse = result;
+        _isLoadingRecommendations = false;
+        _recommendationsError = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingRecommendations = false;
+        _recommendationsError = error.toString();
+      });
+    }
   }
 
   Future<void> _loadCurrentUser() async {
@@ -86,9 +119,9 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
           if (_totalLikes < 0) _totalLikes = 0;
           _isTogglingLike = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al alternar like: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al alternar like: $e')));
       }
     }
   }
@@ -154,7 +187,9 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Eliminar comentario'),
-        content: const Text('¿Estás seguro de que deseas eliminar este comentario?'),
+        content: const Text(
+          '¿Estás seguro de que deseas eliminar este comentario?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -163,7 +198,10 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'Eliminar',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -185,9 +223,9 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al eliminar: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error al eliminar: $e')));
         }
       }
     }
@@ -204,11 +242,6 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
         : const Color(0xFFE0E0E0);
     final appBarColor = const Color(0xFF5C6445);
     final appBarTextColor = const Color(0xFFE0E0E0);
-    final cardBackgroundColor = isDark
-        ? themeProvider.darkTheme.cardColor
-        : Colors.white;
-    final primaryTextColor = isDark ? Colors.white : const Color(0xFF0F1D33);
-
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
@@ -231,6 +264,7 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
             _buildSpeciesInfo(),
             _buildLocationSection(),
             _buildDescriptionSection(),
+            _buildRecommendationsSection(),
             _buildCommentsSection(context),
             _buildAddCommentSection(),
             const SizedBox(height: 20),
@@ -375,7 +409,7 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
           ),
           const SizedBox(height: 12),
 
-          // 🔹 Barra social de autor y me gusta
+          // Barra social de autor y me gusta
           Row(
             children: [
               InkWell(
@@ -394,7 +428,10 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
                 },
                 borderRadius: BorderRadius.circular(20),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 4,
+                    horizontal: 6,
+                  ),
                   child: Row(
                     children: [
                       CircleAvatar(
@@ -402,7 +439,8 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
                         backgroundColor: const Color(0xFF5C6445),
                         child: Text(
                           widget.avistamiento.nombreUsuario.isNotEmpty
-                              ? widget.avistamiento.nombreUsuario[0].toUpperCase()
+                              ? widget.avistamiento.nombreUsuario[0]
+                                    .toUpperCase()
                               : 'U',
                           style: const TextStyle(
                             color: Colors.white,
@@ -429,7 +467,10 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
                 onTap: _toggleLike,
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: _userHasLiked
                         ? Colors.red.withOpacity(0.1)
@@ -706,6 +747,207 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
       ),
     );
   }
+
+  Widget _buildRecommendationsSection() {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+    final cardBackgroundColor = isDark
+        ? themeProvider.darkTheme.cardColor
+        : Colors.white;
+    final primaryTextColor = isDark ? Colors.white : const Color(0xFF0F1D33);
+    final recommendations =
+        _recommendationResponse?.recomendaciones ??
+        const <AvistamientoRecomendacion>[];
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(20),
+      color: cardBackgroundColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'AVISTAMIENTOS RECOMENDADOS',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: primaryTextColor,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_isLoadingRecommendations)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (_recommendationsError != null)
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'No se pudieron cargar las recomendaciones.',
+                    style: TextStyle(color: primaryTextColor),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => _loadRecommendations(retry: true),
+                  child: const Text('Reintentar'),
+                ),
+              ],
+            )
+          else if (recommendations.isEmpty)
+            Text(
+              'No hay avistamientos cercanos ni de la misma especie.',
+              style: TextStyle(color: primaryTextColor),
+            )
+          else ...[
+            Text(
+              _recommendationResponse?.criterio == 'cercania'
+                  ? 'Avistamientos a menos de 1 km'
+                  : 'Otros avistamientos de la misma especie',
+              style: TextStyle(color: primaryTextColor.withValues(alpha: 0.75)),
+            ),
+            const SizedBox(height: 12),
+            ...recommendations.map(_buildRecommendationCard),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecommendationCard(AvistamientoRecomendacion recommendation) {
+    final avistamiento = recommendation.avistamiento;
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+    final cardColor = isDark ? themeProvider.darkTheme.cardColor : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F1D33);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      color: cardColor,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AvistamientoDetailPage(
+                avistamiento: avistamiento,
+                usuarioId: _currentUserId,
+                nombreUsuario: widget.nombreUsuario,
+              ),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: 82,
+                  height: 82,
+                  child: _buildRecommendationImage(avistamiento.imagen),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      avistamiento.nombreComun,
+                      style: TextStyle(
+                        color: textColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      avistamiento.nombreCientifico,
+                      style: TextStyle(
+                        color: textColor.withValues(alpha: 0.7),
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      avistamiento.descripcion,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: textColor),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        if (recommendation.distanciaMetros != null)
+                          Text(
+                            '${recommendation.distanciaMetros} m',
+                            style: const TextStyle(
+                              color: Color(0xFF5C6445),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        if (avistamiento.estadoExtincion.isNotEmpty)
+                          Text(
+                            avistamiento.estadoExtincion,
+                            style: TextStyle(
+                              color: textColor.withValues(alpha: 0.75),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                color: textColor.withValues(alpha: 0.6),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecommendationImage(String image) {
+    try {
+      if (image.startsWith('http')) {
+        return Image.network(
+          image,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _recommendationImagePlaceholder(),
+        );
+      }
+      if (image.isNotEmpty) {
+        final base64Image = image.contains(',')
+            ? image.substring(image.indexOf(',') + 1)
+            : image;
+        return Image.memory(
+          base64Decode(base64Image),
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _recommendationImagePlaceholder(),
+        );
+      }
+    } catch (_) {
+      return _recommendationImagePlaceholder();
+    }
+    return _recommendationImagePlaceholder();
+  }
+
+  Widget _recommendationImagePlaceholder() => Container(
+    color: const Color(0xFFE0E0E0),
+    alignment: Alignment.center,
+    child: const Icon(Icons.nature, color: Color(0xFF5C6445), size: 32),
+  );
 
   Widget _buildCommentsSection(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);

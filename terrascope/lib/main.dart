@@ -17,6 +17,7 @@ import 'package:terrascope/services/session_service.dart';
 import 'package:terrascope/services/theme_service.dart';
 import 'package:terrascope/services/notification_service.dart';
 import 'package:terrascope/components/notification_banner.dart';
+import 'package:terrascope/providers/fauna_flora_provider.dart';
 import 'components/map/map_page.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
@@ -34,6 +35,7 @@ Future<void> main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => RetosObserverProvider()),
+        ChangeNotifierProvider(create: (_) => FaunaFloraProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => NotificationService()),
       ],
@@ -94,6 +96,9 @@ class _MyAppState extends State<MyApp> {
         final avistamiento = await AvistamientoService.getAvistamientoById(
           targetId,
         );
+        if (avistamiento == null) {
+          throw Exception('El avistamiento ya no está disponible');
+        }
         final session = await SessionService().getUserData();
         navigator.push(
           MaterialPageRoute(

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '/services/ia_service.dart';
 
-/// 🧠 Componente base de identificación por IA
+/// Componente base de identificacion por IA
 /// Reutilizable en distintas pantallas
 class IAIdentificacion extends StatefulWidget {
   const IAIdentificacion({super.key});
@@ -18,7 +18,7 @@ class _IAIdentificacionState extends State<IAIdentificacion> {
   bool _cargando = false;
   Map<String, dynamic>? _resultadoIA;
 
-  /// 📸 Selecciona una imagen desde la galería
+  /// Selecciona una imagen desde la galeria
   Future<void> _seleccionarImagen() async {
     final picker = ImagePicker();
     final imagen = await picker.pickImage(source: ImageSource.gallery);
@@ -36,7 +36,7 @@ class _IAIdentificacionState extends State<IAIdentificacion> {
     }
   }
 
-  /// 🤖 Envía la imagen al servicio IA para identificar la especie
+  /// Envia la imagen al servicio IA para identificar la especie
   Future<void> _identificarEspecie() async {
     if (_imagenSeleccionada == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -80,7 +80,7 @@ class _IAIdentificacionState extends State<IAIdentificacion> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // 📷 Vista previa de la imagen seleccionada
+            // Vista previa de la imagen seleccionada
             GestureDetector(
               onTap: _seleccionarImagen,
               child: _imagenSeleccionada != null
@@ -114,7 +114,7 @@ class _IAIdentificacionState extends State<IAIdentificacion> {
             ),
             const SizedBox(height: 24),
 
-            // 🖼️ Botón seleccionar imagen
+            // Boton seleccionar imagen
             ElevatedButton.icon(
               onPressed: _seleccionarImagen,
               icon: const Icon(Icons.photo_library),
@@ -130,7 +130,7 @@ class _IAIdentificacionState extends State<IAIdentificacion> {
             ),
             const SizedBox(height: 16),
 
-            // 🔍 Botón identificar
+            // Boton identificar
             ElevatedButton.icon(
               onPressed: _cargando ? null : _identificarEspecie,
               icon: _cargando
@@ -155,7 +155,7 @@ class _IAIdentificacionState extends State<IAIdentificacion> {
             ),
             const SizedBox(height: 24),
 
-            // 🧾 Resultado IA
+            // Resultado IA
             if (_resultadoIA != null)
               Container(
                 width: double.infinity,
@@ -175,17 +175,13 @@ class _IAIdentificacionState extends State<IAIdentificacion> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "🔍 Resultado de Identificación",
+                      "Resultado de Identificacion",
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 12),
-                    Text("🌿 Nombre común: ${_resultadoIA!['nombre_comun']}"),
-                    Text(
-                      "🧬 Nombre científico: ${_resultadoIA!['nombre_cientifico']}",
-                    ),
-                    Text(
-                      "📊 Nivel de confianza: ${_resultadoIA!['nivel_confianza']}",
-                    ),
+                    Text("Nombre común: ${_resultadoIA!['nombre_comun']}"),
+                    Text("Nombre científico: ${_resultadoIA!['nombre_cientifico']}"),
+                    Text("Nivel de confianza: ${_resultadoIA!['nivel_confianza']}"),
                   ],
                 ),
               ),
