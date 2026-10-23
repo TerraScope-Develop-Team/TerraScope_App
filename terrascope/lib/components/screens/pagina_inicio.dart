@@ -519,21 +519,32 @@ class _HomePageState extends State<HomePage> {
                             itemCount: _avistamientosFiltrados.length,
                             padding: const EdgeInsets.only(bottom: 16),
                             itemBuilder: (context, index) {
+                              final item = _avistamientosFiltrados[index];
                               return AvistamientoCard(
-                                data: _avistamientosFiltrados[index],
+                                key: ValueKey(item.id),
+                                data: item,
                                 onTap: () {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           AvistamientoDetailLoader(
-                                            avistamientoId:
-                                                _avistamientosFiltrados[index]
-                                                    .id,
+                                            avistamientoId: item.id,
                                             service: _service,
                                           ),
                                     ),
                                   );
+                                },
+                                onDeleted: () {
+                                  if (!mounted) return;
+                                  setState(() {
+                                    _avistamientos.removeWhere(
+                                      (a) => a.id == item.id,
+                                    );
+                                    _avistamientosFiltrados.removeWhere(
+                                      (a) => a.id == item.id,
+                                    );
+                                  });
                                 },
                                 service: _service,
                                 sessionService: _sessionService,
@@ -794,6 +805,7 @@ class _HomePageState extends State<HomePage> {
 class AvistamientoCard extends StatefulWidget {
   final Avistamiento data;
   final VoidCallback onTap;
+  final VoidCallback? onDeleted;
   final FaunaFloraService service;
   final SessionService sessionService;
 
@@ -801,6 +813,7 @@ class AvistamientoCard extends StatefulWidget {
     super.key,
     required this.data,
     required this.onTap,
+    this.onDeleted,
     required this.service,
     required this.sessionService,
   });
@@ -815,6 +828,7 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
   bool _isLoadingValidacion = false;
   Map<String, dynamic>? _estadoValidacion;
   bool _yaVoto = false;
+  String? _tipoVotoUsuario;
 
   late bool _userHasLiked;
   late int _totalLikes;
@@ -902,10 +916,25 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
       final estado = await widget.service.getEstadoValidacion(widget.data.id);
       print("[DEBUG] Estado de validación recibido  $estado");
 
+      if (estado?['eliminado'] == true || estado?['estado'] == 'eliminado') {
+        if (mounted) {
+          final motivo = estado?['motivo']?.toString();
+          final textoMotivo = motivo == 'sin_votos'
+              ? 'Avistamiento eliminado automáticamente por no recibir votos en el periodo.'
+              : 'Avistamiento eliminado automáticamente por mayoría de votos negativos.';
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(textoMotivo)));
+          widget.onDeleted?.call();
+        }
+        return;
+      }
+
       if (mounted) {
         setState(() {
           _estadoValidacion = estado;
           _yaVoto = estado?['yaVoto'] ?? false;
+          _tipoVotoUsuario = estado?['tipo_voto_usuario']?.toString();
         });
       }
     } catch (e) {
@@ -915,8 +944,8 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
     }
   }
 
-  /// Votar como comunidad
-  Future<void> _votar() async {
+  /// Votar como comunidad ('positivo' o 'negativo')
+  Future<void> _votar(String tipoVoto) async {
     if (_idUsuario.isEmpty) {
       print(" [DEBUG] No se puede votar: ID de usuario vacío.");
       return;
@@ -925,23 +954,41 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
     setState(() => _isLoadingValidacion = true);
     try {
       print(
-        " [DEBUG] Enviando voto de usuario $_idUsuario para ${widget.data.id}",
+        " [DEBUG] Enviando voto ($tipoVoto) de usuario $_idUsuario para ${widget.data.id}",
       );
-      await widget.service.votarAvistamiento(
+      final res = await widget.service.votarAvistamiento(
         widget.data.id,
         idUsuario: _idUsuario,
+        tipoVoto: tipoVoto,
       );
+
+      if (res['eliminado'] == true) {
+        if (mounted) {
+          final msg =
+              res['message']?.toString() ??
+              'El avistamiento fue eliminado automáticamente por mayoría de votos negativos.';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(msg), backgroundColor: Colors.red.shade700),
+          );
+          widget.onDeleted?.call();
+        }
+        return;
+      }
     } catch (e) {
-      //  Aquí capturamos el error 400 y seguimos
       if (e.toString().contains('400')) {
         print(' Usuario ya votó, actualizando estado de validación...');
       } else {
         print('Error al votar: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('No se pudo votar: $e')));
+        }
       }
     } finally {
-      // Siempre recargamos estado de validación
-      await _cargarEstadoValidacion();
-      if (mounted) setState(() => _isLoadingValidacion = false);
+      if (mounted) {
+        await _cargarEstadoValidacion();
+      }
     }
   }
 
@@ -962,6 +1009,27 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
     } finally {
       if (mounted) setState(() => _isLoadingValidacion = false);
     }
+  }
+
+  String _formatearTiempoRestante(String? fechaFinIso) {
+    if (fechaFinIso == null || fechaFinIso.isEmpty) {
+      return 'Periodo activo';
+    }
+    final fechaFin = DateTime.tryParse(fechaFinIso)?.toLocal();
+    if (fechaFin == null) return 'Periodo activo';
+
+    final diff = fechaFin.difference(DateTime.now());
+    if (diff.isNegative || diff.inSeconds <= 0) {
+      return 'Periodo finalizado';
+    }
+    if (diff.inHours >= 1) {
+      final mins = diff.inMinutes % 60;
+      return 'Cierra en ${diff.inHours}h ${mins}m';
+    }
+    if (diff.inMinutes >= 1) {
+      return 'Cierra en ${diff.inMinutes}m';
+    }
+    return 'Cierra en ${diff.inSeconds}s';
   }
 
   IconData _getExtincionIcon(String estado) {
@@ -1099,15 +1167,38 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
     final primaryTextColor = isDark ? Colors.white : const Color(0xFF0F1D33);
     final secondaryTextColor = isDark ? Colors.white70 : Colors.grey[700]!;
 
-    final votos = _estadoValidacion?['votos_comunidad'] ?? 0;
-    final requeridos = _estadoValidacion?['requeridos_comunidad'] ?? 0;
-    final validado = _estadoValidacion?['validado_por_experto'] ?? false;
-    final yaVoto = _estadoValidacion?['yaVoto'] ?? false;
-
-    // Logs para depuración
-    print("Usuario: $_idUsuario | Rol: $_rolUsuario");
-    print(
-      " Estado validación  votos: $votos, requeridos: $requeridos, validado: $validado",
+    final votosPositivos =
+        (_estadoValidacion?['votos_positivos'] ??
+                _estadoValidacion?['votos_comunidad'] ??
+                widget.data.validacion.votosPositivos)
+            as int;
+    final votosNegativos =
+        (_estadoValidacion?['votos_negativos'] ??
+                widget.data.validacion.votosNegativos)
+            as int;
+    final totalVotos = votosPositivos + votosNegativos;
+    final requeridos =
+        (_estadoValidacion?['requeridos_comunidad'] ??
+                widget.data.validacion.requeridosComunidad)
+            as int;
+    final validadoExperto =
+        (_estadoValidacion?['validado_por_experto'] ??
+            widget.data.validacion.validadoPorExperto) ==
+        true;
+    final estadoActual =
+        (_estadoValidacion?['estado'] ?? widget.data.validacion.estado)
+            .toString();
+    final validadoComunidad = estadoActual == 'validado_comunidad';
+    final validado = validadoExperto || validadoComunidad;
+    final yaVoto = (_estadoValidacion?['yaVoto'] ?? _yaVoto) == true;
+    final tipoVotoUsuario =
+        (_estadoValidacion?['tipo_voto_usuario'] ?? _tipoVotoUsuario)
+            ?.toString();
+    final esAutor =
+        _idUsuario.isNotEmpty && widget.data.idUsuario == _idUsuario;
+    final textoTiempo = _formatearTiempoRestante(
+      _estadoValidacion?['fecha_fin_votacion']?.toString() ??
+          widget.data.validacion.fechaFinVotacion?.toIso8601String(),
     );
 
     return Card(
@@ -1362,16 +1453,18 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        const Text(
-                                          'Validado por experto',
-                                          style: TextStyle(
+                                        Text(
+                                          validadoExperto
+                                              ? 'Validado por experto'
+                                              : 'Validado por mayoría de la comunidad',
+                                          style: const TextStyle(
                                             color: Colors.green,
                                             fontWeight: FontWeight.bold,
                                             fontSize: 14,
                                           ),
                                         ),
                                         Text(
-                                          '$votos votos de la comunidad',
+                                          '$votosPositivos a favor · $votosNegativos en contra',
                                           style: TextStyle(
                                             color: Colors.green.shade700,
                                             fontSize: 12,
@@ -1382,148 +1475,311 @@ class _AvistamientoCardState extends State<AvistamientoCard> {
                                   ),
                                 ],
                               )
-                            : _rolUsuario.toLowerCase() != 'usuario'
-                            ? ElevatedButton.icon(
-                                onPressed: _validarComoExperto,
-                                icon: const Icon(Icons.verified, size: 18),
-                                label: const Text(
-                                  'Validar como experto',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF5C6445),
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  elevation: 1,
-                                ),
-                              )
                             : Column(
-                                mainAxisSize:
-                                    MainAxisSize.min, // CRÍTICO para scroll
-                                crossAxisAlignment: CrossAxisAlignment
-                                    .stretch, // Evita saltos
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
+                                  // Encabezado con estado de ventana de tiempo
                                   Row(
-                                    mainAxisSize: MainAxisSize.max,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Expanded(
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
-                                          child: LinearProgressIndicator(
-                                            value: requeridos > 0
-                                                ? votos / requeridos
-                                                : 0,
-                                            backgroundColor:
-                                                Colors.grey.shade300,
-                                            valueColor:
-                                                const AlwaysStoppedAnimation<
-                                                  Color
-                                                >(Color(0xFF5C6445)),
-                                            minHeight: 6,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
                                       Text(
-                                        '$votos/$requeridos',
-                                        style: const TextStyle(
+                                        'Votación comunitaria',
+                                        style: TextStyle(
                                           fontSize: 13,
                                           fontWeight: FontWeight.bold,
-                                          color: Color(0xFF5C6445),
+                                          color: primaryTextColor,
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFF5C6445,
+                                          ).withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(
+                                              Icons.schedule,
+                                              size: 13,
+                                              color: Color(0xFF5C6445),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              textoTiempo,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF5C6445),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ],
                                   ),
                                   const SizedBox(height: 10),
-                                  !_yaVoto
-                                      ? ElevatedButton.icon(
-                                          onPressed: _idUsuario.isEmpty
-                                              ? null
-                                              : _votar,
-                                          icon: const Icon(
-                                            Icons.how_to_vote,
-                                            size: 18,
+
+                                  // Contadores de votos positivos vs negativos
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.thumb_up_alt_rounded,
+                                            size: 16,
+                                            color: Color(0xFF5C6445),
                                           ),
-                                          label: const Text(
-                                            'Validar',
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '$votosPositivos a favor',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF5C6445),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.thumb_down_alt_rounded,
+                                            size: 16,
+                                            color: Colors.red.shade700,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '$votosNegativos en contra',
                                             style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w600,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.red.shade700,
                                             ),
                                           ),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(
-                                              0xFF5C6445,
-                                            ),
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 12,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            elevation: 1,
-                                            disabledBackgroundColor:
-                                                Colors.grey.shade300,
-                                            disabledForegroundColor:
-                                                Colors.grey.shade500,
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+
+                                  // Barra de proporción positivos vs negativos
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: LinearProgressIndicator(
+                                      value: totalVotos > 0
+                                          ? votosPositivos / totalVotos
+                                          : 0.5,
+                                      backgroundColor: totalVotos > 0
+                                          ? Colors.red.shade300
+                                          : Colors.grey.shade300,
+                                      valueColor:
+                                          AlwaysStoppedAnimation<Color>(
+                                            totalVotos > 0
+                                                ? const Color(0xFF5C6445)
+                                                : Colors.grey.shade400,
                                           ),
-                                        )
-                                      : Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 12,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(
-                                              0xFF5C6445,
-                                            ).withOpacity(0.12),
-                                            borderRadius: BorderRadius.circular(
-                                              8,
+                                      minHeight: 7,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+
+                                  // Botones de acción según estado del usuario
+                                  if (esAutor)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 10,
+                                        horizontal: 12,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blueGrey.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        'Tu avistamiento está en evaluación comunitaria',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: secondaryTextColor,
+                                        ),
+                                      ),
+                                    )
+                                  else if (!yaVoto)
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: ElevatedButton.icon(
+                                            onPressed: _idUsuario.isEmpty
+                                                ? null
+                                                : () => _votar('positivo'),
+                                            icon: const Icon(
+                                              Icons.thumb_up_alt_outlined,
+                                              size: 17,
                                             ),
-                                            border: Border.all(
-                                              color: const Color(
+                                            label: const Text(
+                                              'A favor',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(
                                                 0xFF5C6445,
-                                              ).withOpacity(0.35),
-                                              width: 1.5,
+                                              ),
+                                              foregroundColor: Colors.white,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 11,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              elevation: 1,
                                             ),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.max,
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: const [
-                                              Icon(
-                                                Icons.check_circle,
-                                                color: Color(0xFF5C6445),
-                                                size: 18,
-                                              ),
-                                              SizedBox(width: 8),
-                                              Text(
-                                                'Ya has votado',
-                                                style: TextStyle(
-                                                  color: Color(0xFF5C6445),
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 14,
-                                                ),
-                                              ),
-                                            ],
                                           ),
                                         ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: OutlinedButton.icon(
+                                            onPressed: _idUsuario.isEmpty
+                                                ? null
+                                                : () => _votar('negativo'),
+                                            icon: Icon(
+                                              Icons.thumb_down_alt_outlined,
+                                              size: 17,
+                                              color: Colors.red.shade700,
+                                            ),
+                                            label: Text(
+                                              'En contra',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.red.shade700,
+                                              ),
+                                            ),
+                                            style: OutlinedButton.styleFrom(
+                                              side: BorderSide(
+                                                color: Colors.red.shade700,
+                                                width: 1.4,
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 11,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  else
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 11,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: tipoVotoUsuario == 'negativo'
+                                            ? Colors.red.withOpacity(0.1)
+                                            : const Color(
+                                                0xFF5C6445,
+                                              ).withOpacity(0.12),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: tipoVotoUsuario == 'negativo'
+                                              ? Colors.red.withOpacity(0.35)
+                                              : const Color(
+                                                  0xFF5C6445,
+                                                ).withOpacity(0.35),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.max,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            tipoVotoUsuario == 'negativo'
+                                                ? Icons.thumb_down_alt_rounded
+                                                : Icons.check_circle,
+                                            color: tipoVotoUsuario == 'negativo'
+                                                ? Colors.red.shade700
+                                                : const Color(0xFF5C6445),
+                                            size: 18,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            tipoVotoUsuario == 'negativo'
+                                                ? 'Votaste en contra'
+                                                : 'Votaste a favor',
+                                            style: TextStyle(
+                                              color:
+                                                  tipoVotoUsuario == 'negativo'
+                                                  ? Colors.red.shade700
+                                                  : const Color(0xFF5C6445),
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                  if (_rolUsuario.toLowerCase() !=
+                                      'usuario') ...[
+                                    const SizedBox(height: 10),
+                                    ElevatedButton.icon(
+                                      onPressed: _validarComoExperto,
+                                      icon: const Icon(
+                                        Icons.verified,
+                                        size: 18,
+                                      ),
+                                      label: const Text(
+                                        'Validar como experto',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFF0F1D33,
+                                        ),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 10,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        elevation: 1,
+                                      ),
+                                    ),
+                                  ],
+
                                   const SizedBox(height: 6),
                                   Text(
-                                    'Se necesitan $requeridos votos',
+                                    'Se valida por mayoría al concluir el periodo. Si tiene mayoría negativa (≥$requeridos) o cierra sin votos, se elimina automáticamente.',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontSize: 11,
