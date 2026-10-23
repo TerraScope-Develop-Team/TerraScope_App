@@ -14,8 +14,7 @@ import 'api_response.dart';
 class FaunaFloraService {
   final String baseUrl;
 
-  FaunaFloraService({String? baseUrl})
-      : baseUrl = baseUrl ?? ApiConfig.baseUrl;
+  FaunaFloraService({String? baseUrl}) : baseUrl = baseUrl ?? ApiConfig.baseUrl;
 
   // --- Crear / Actualizar / Eliminar -----------------------------------
 
@@ -70,7 +69,9 @@ class FaunaFloraService {
       queryParameters['cursor'] = cursor;
     }
 
-    final uri = Uri.parse('$baseUrl/fauna-flora').replace(queryParameters: queryParameters);
+    final uri = Uri.parse(
+      '$baseUrl/fauna-flora',
+    ).replace(queryParameters: queryParameters);
     final response = await ApiClient.get(uri);
 
     final dataList = ApiResponse.extractList(response.body);
@@ -92,6 +93,19 @@ class FaunaFloraService {
     return Avistamiento.fromJson(jsonData);
   }
 
+  /// Obtener recomendaciones de un avistamiento por cercanía o especie.
+  Future<RecomendacionesAvistamiento> getRecomendacionesAvistamiento(
+    String avistamientoId,
+  ) async {
+    final response = await ApiClient.get(
+      Uri.parse('$baseUrl/fauna-flora/$avistamientoId/recomendados'),
+    );
+
+    return RecomendacionesAvistamiento.fromJson(
+      ApiResponse.extractMap(response.body),
+    );
+  }
+
   /// Obtener avistamientos cercanos por ubicacion
   Future<List<Avistamiento>> getFaunaFloraCerca(
     double latitud,
@@ -111,9 +125,7 @@ class FaunaFloraService {
   /// Obtener avistamientos por especie
   Future<List<Avistamiento>> getFaunaFloraByEspecie(String especie) async {
     final response = await ApiClient.get(
-      Uri.parse(
-        '$baseUrl/fauna-flora/especie/${Uri.encodeComponent(especie)}',
-      ),
+      Uri.parse('$baseUrl/fauna-flora/especie/${Uri.encodeComponent(especie)}'),
     );
 
     final dataList = ApiResponse.extractList(response.body);
