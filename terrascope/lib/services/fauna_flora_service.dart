@@ -231,17 +231,20 @@ class FaunaFloraService {
 
   // --- Validacion ------------------------------------------------------
 
-  /// Votar por un avistamiento (comunidad)
-  Future<void> votarAvistamiento(
+  /// Votar por un avistamiento (comunidad: 'positivo' o 'negativo')
+  Future<Map<String, dynamic>> votarAvistamiento(
     String idAvistamiento, {
     String? idUsuario,
+    String tipoVoto = 'positivo',
   }) async {
-    await ApiClient.put(
+    final response = await ApiClient.put(
       Uri.parse('$baseUrl/fauna-flora/$idAvistamiento/votar'),
       body: json.encode({
         if (idUsuario != null && idUsuario.isNotEmpty) 'id_usuario': idUsuario,
+        'tipo_voto': tipoVoto,
       }),
     );
+    return json.decode(response.body) as Map<String, dynamic>;
   }
 
   /// Validar avistamiento como experto
@@ -259,13 +262,26 @@ class FaunaFloraService {
     );
   }
 
-  /// Obtener estado de validacion (incluye yaVoto y usuarios_validadores)
+  /// Obtener estado de validacion (incluye yaVoto, votos_positivos, votos_negativos y eliminado)
   Future<Map<String, dynamic>?> getEstadoValidacion(
     String idAvistamiento,
   ) async {
     final response = await ApiClient.get(
       Uri.parse('$baseUrl/fauna-flora/$idAvistamiento/validacion'),
+      allowedCodes: [200, 404],
     );
+    if (response.statusCode == 404) {
+      return {
+        'estado': 'eliminado',
+        'eliminado': true,
+        'votos_comunidad': 0,
+        'votos_positivos': 0,
+        'votos_negativos': 0,
+        'requeridos_comunidad': 5,
+        'validado_por_experto': false,
+        'yaVoto': false,
+      };
+    }
     return json.decode(response.body) as Map<String, dynamic>;
   }
 }

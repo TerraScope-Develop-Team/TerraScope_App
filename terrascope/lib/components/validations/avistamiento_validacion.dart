@@ -28,9 +28,14 @@ class AvistamientoValidacionProvider with ChangeNotifier, RequestStateMixin {
     log("Avistamientos cargados: ${_avistamientos.length}");
   });
 
-  /// Votar validación comunitaria
-  Future<void> votar(String idAvistamiento) => executeRequest(() async {
-    log("Iniciando proceso de voto para avistamiento $idAvistamiento...");
+  /// Votar validación comunitaria ('positivo' o 'negativo')
+  Future<Map<String, dynamic>?> votar(
+    String idAvistamiento, {
+    String tipoVoto = 'positivo',
+  }) => executeRequest<Map<String, dynamic>?>(() async {
+    log(
+      "Iniciando proceso de voto ($tipoVoto) para avistamiento $idAvistamiento...",
+    );
     final userData = await _sessionService.getUserData();
 
     // Verificar datos en sesión
@@ -44,16 +49,26 @@ class AvistamientoValidacionProvider with ChangeNotifier, RequestStateMixin {
     }
 
     log(
-      "Enviando voto de usuario $idUsuario avistamiento $idAvistamiento",
+      "Enviando voto ($tipoVoto) de usuario $idUsuario avistamiento $idAvistamiento",
     );
 
-    await _service.votarAvistamiento(
+    final resultado = await _service.votarAvistamiento(
       idAvistamiento,
       idUsuario: idUsuario.toString(),
+      tipoVoto: tipoVoto,
     );
 
-    log("Voto enviado correctamente. Recargando lista...");
-    _avistamientos = await _service.getAllFaunaFlora();
+    if (resultado['eliminado'] == true) {
+      log(
+        "El avistamiento $idAvistamiento fue eliminado automáticamente (${resultado['motivo']}).",
+      );
+      _avistamientos.removeWhere((item) => item.id == idAvistamiento);
+    } else {
+      log("Voto enviado correctamente. Recargando lista...");
+      _avistamientos = await _service.getAllFaunaFlora();
+    }
+
+    return resultado;
   });
 
   /// Validar avistamiento como experto (solo Administrador o Investigador)
@@ -87,7 +102,7 @@ class AvistamientoValidacionProvider with ChangeNotifier, RequestStateMixin {
         _avistamientos = await _service.getAllFaunaFlora();
       });
 
-  /// Obtener estado actual de validación (con yaVoto)
+  /// Obtener estado actual de validación (con yaVoto, votos_positivos, votos_negativos)
   Future<Map<String, dynamic>?> obtenerEstadoValidacion(
     String idAvistamiento,
   ) => executeRequest<Map<String, dynamic>?>(() async {
@@ -105,12 +120,19 @@ class AvistamientoValidacionProvider with ChangeNotifier, RequestStateMixin {
 
     if (estado != null) {
       final yaVoto = estado['yaVoto'] ?? false;
-      final votos = estado['votos_comunidad'] ?? 0;
-      final requeridos = estado['requeridos_comunidad'] ?? 0;
+      final positivos =
+          estado['votos_positivos'] ?? estado['votos_comunidad'] ?? 0;
+      final negativos = estado['votos_negativos'] ?? 0;
+      final requeridos = estado['requeridos_comunidad'] ?? 5;
       final validado = estado['validado_por_experto'] ?? false;
+      final eliminado = estado['eliminado'] ?? false;
+
+      if (eliminado == true) {
+        _avistamientos.removeWhere((item) => item.id == idAvistamiento);
+      }
 
       log(
-        "Estado recibido votos: $votos, requeridos: $requeridos, validado: $validado, yaVoto: $yaVoto",
+        "Estado recibido +$positivos / -$negativos (req: $requeridos), validado: $validado, yaVoto: $yaVoto, eliminado: $eliminado",
       );
     }
 
