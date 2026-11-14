@@ -1,6 +1,9 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
 import 'dart:convert';
+
+import '../config/api_config.dart';
 
 class SessionService {
   static const String _keyUserData = 'user_data';
@@ -98,6 +101,40 @@ class SessionService {
     } catch (error) {
       print('Error al restaurar la sesión: $error');
       return false;
+    }
+  }
+
+  /// Valida el token guardado contra el servidor.
+  /// Retorna `true` solo si el backend confirma que el token es válido.
+  /// Si el token expiró o es inválido, borra la sesión local y retorna `false`.
+  Future<bool> validateSessionWithServer() async {
+    try {
+      final hasLocal = await hasSavedSession();
+      if (!hasLocal) return false;
+
+      final token = await getToken();
+      final userData = await getUserData();
+      final userId = (userData?['_id'] ?? userData?['id'])?.toString();
+
+      if (token == null || userId == null) return false;
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/usuarios/$userId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) return true;
+
+      // Token inválido o expirado → limpiar sesión local
+      await logout();
+      return false;
+    } catch (error) {
+      // Sin red: conservamos la sesión local para no bloquear al usuario offline
+      print('No se pudo validar sesión con el servidor (sin red?): $error');
+      return await hasSavedSession();
     }
   }
 
