@@ -1,12 +1,12 @@
-import 'package:provider/provider.dart';
-import 'package:terrascope/services/notification_service.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:provider/provider.dart';
+import 'package:terrascope/services/alerta_service.dart';
 import 'package:terrascope/services/auth_service.dart';
+import 'package:terrascope/services/danger_alert_presenter.dart';
+import 'package:terrascope/services/notification_service.dart';
 import 'package:terrascope/services/session_service.dart';
 import 'package:terrascope/services/socket_service.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:terrascope/services/alerta_service.dart';
-import 'package:terrascope/services/danger_alert_presenter.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -22,19 +22,35 @@ class _LoginPageState extends State<LoginPage>
   final SessionService _sessionService = SessionService();
   bool isLoading = false;
   bool _obscurePassword = true;
+
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  // Paleta de colores institucional TerraScope
+  static const Color primaryGreen = Color(0xFF5C6445);
+  static const Color secondaryGreen = Color(0xFF939E69);
+  static const Color darkNavy = Color(0xFF0F1D33);
 
   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 800),
     );
     _fadeAnimation = CurvedAnimation(
       parent: _animationController,
-      curve: Curves.easeInOut,
+      curve: Curves.easeOut,
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.05),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeOutCubic,
+      ),
     );
     _animationController.forward();
   }
@@ -81,28 +97,30 @@ class _LoginPageState extends State<LoginPage>
       setState(() => isLoading = false);
 
       if (sessionSaved) {
-        debugPrint('Sesion guardada correctamente');
+        debugPrint('Sesión guardada correctamente');
         debugPrint('Usuario: ${user['nombre_usuario']}');
 
         // Conectar al WebSocket para recibir alertas en tiempo real
-        final notificationService = Provider.of<NotificationService>(
-          context,
-          listen: false,
-        );
-        await SocketService().initSocket(
-          onAlert: (title, body, alertData) async {
-            try {
-              await DangerAlertPresenter.present(
-                notificationService: notificationService,
-                alert: alertData,
-                title: title,
-                message: body,
-              );
-            } catch (error) {
-              debugPrint('No se pudo presentar la alerta de fauna: $error');
-            }
-          },
-        );
+        if (mounted) {
+          final notificationService = Provider.of<NotificationService>(
+            context,
+            listen: false,
+          );
+          await SocketService().initSocket(
+            onAlert: (title, body, alertData) async {
+              try {
+                await DangerAlertPresenter.present(
+                  notificationService: notificationService,
+                  alert: alertData,
+                  title: title,
+                  message: body,
+                );
+              } catch (error) {
+                debugPrint('No se pudo presentar la alerta de fauna: $error');
+              }
+            },
+          );
+        }
 
         // Enviar ubicación actual al backend para que pueda notificarnos
         try {
@@ -114,23 +132,24 @@ class _LoginPageState extends State<LoginPage>
             position.latitude,
             position.longitude,
           );
-          debugPrint('Ubicacion enviada al iniciar sesion');
+          debugPrint('Ubicación enviada al iniciar sesión');
         } catch (e) {
-          debugPrint('No se pudo enviar ubicacion al login: $e');
+          debugPrint('No se pudo enviar ubicación al login: $e');
         }
 
+        if (!mounted) return;
         Navigator.pushReplacementNamed(context, '/home');
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.check_circle, color: Colors.white),
+                const Icon(Icons.check_circle_rounded, color: Colors.white),
                 const SizedBox(width: 12),
                 Text("¡Bienvenido ${user['nombre_usuario']}!"),
               ],
             ),
-            backgroundColor: Colors.green[600],
+            backgroundColor: primaryGreen,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -138,11 +157,12 @@ class _LoginPageState extends State<LoginPage>
           ),
         );
       } else {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Row(
               children: [
-                Icon(Icons.error_outline, color: Colors.white),
+                Icon(Icons.error_outline_rounded, color: Colors.white),
                 SizedBox(width: 12),
                 Text("Error al guardar la sesión"),
               ],
@@ -156,6 +176,7 @@ class _LoginPageState extends State<LoginPage>
         );
       }
     } else {
+      if (!mounted) return;
       setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -179,348 +200,505 @@ class _LoginPageState extends State<LoginPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [
-              const Color(0xFF5C6445),
-              const Color(0xFF4A5237),
-              const Color(0xFF3A4129),
+              Color(0xFF383F28),
+              Color(0xFF4A5237),
+              Color(0xFF5C6445),
             ],
           ),
         ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Logo animado
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 30,
-                            spreadRadius: 5,
+        child: Stack(
+          children: [
+            // Círculos decorativos ambientales
+            Positioned(
+              top: -60,
+              right: -60,
+              child: Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: secondaryGreen.withOpacity(0.18),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: -40,
+              left: -50,
+              child: Container(
+                width: 170,
+                height: 170,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.06),
+                ),
+              ),
+            ),
+
+            SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: IntrinsicHeight(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                            vertical: 14.0,
                           ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.eco,
-                        color: Color(0xFFE0E0E0),
-                        size: 60,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      "TerraScope",
-                      style: TextStyle(
-                        fontSize: 40,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFE0E0E0),
-                        letterSpacing: 2,
-                        shadows: [
-                          Shadow(
-                            color: Colors.black26,
-                            offset: Offset(0, 4),
-                            blurRadius: 8,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "Monitoreo ambiental inteligente",
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: const Color(0xFFE0E0E0).withOpacity(0.8),
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 50),
+                          child: SlideTransition(
+                            position: _slideAnimation,
+                            child: FadeTransition(
+                              opacity: _fadeAnimation,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Spacer(flex: 1),
 
-                    // Card con glassmorphism
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.95),
-                        borderRadius: BorderRadius.circular(28),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 30,
-                            offset: const Offset(0, 15),
-                          ),
-                        ],
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(32.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              "Bienvenido de nuevo",
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF0F1D33),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              "Ingresa tus credenciales para continuar",
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: const Color(0xFF224275).withOpacity(0.7),
-                              ),
-                            ),
-                            const SizedBox(height: 35),
-
-                            // Campo correo mejorado
-                            TextField(
-                              controller: emailController,
-                              decoration: InputDecoration(
-                                filled: true,
-                                fillColor: const Color(0xFFF5F5F5),
-                                labelText: "Correo electrónico",
-                                labelStyle: const TextStyle(
-                                  color: Color(0xFF5C6445),
-                                  fontSize: 14,
-                                ),
-                                prefixIcon: Container(
-                                  margin: const EdgeInsets.all(12),
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: const Color(
-                                      0xFF5C6445,
-                                    ).withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(
-                                    Icons.email_outlined,
-                                    color: Color(0xFF5C6445),
-                                    size: 20,
-                                  ),
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFF5C6445),
-                                    width: 2,
-                                  ),
-                                ),
-                              ),
-                              keyboardType: TextInputType.emailAddress,
-                            ),
-                            const SizedBox(height: 20),
-
-                            // Campo contraseña mejorado
-                            TextField(
-                              controller: passwordController,
-                              decoration: InputDecoration(
-                                filled: true,
-                                fillColor: const Color(0xFFF5F5F5),
-                                labelText: "Contraseña",
-                                labelStyle: const TextStyle(
-                                  color: Color(0xFF5C6445),
-                                  fontSize: 14,
-                                ),
-                                prefixIcon: Container(
-                                  margin: const EdgeInsets.all(12),
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: const Color(
-                                      0xFF5C6445,
-                                    ).withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(
-                                    Icons.lock_outline,
-                                    color: Color(0xFF5C6445),
-                                    size: 20,
-                                  ),
-                                ),
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _obscurePassword
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                    color: const Color(0xFF5C6445),
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _obscurePassword = !_obscurePassword;
-                                    });
-                                  },
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFF5C6445),
-                                    width: 2,
-                                  ),
-                                ),
-                              ),
-                              obscureText: _obscurePassword,
-                            ),
-
-                            const SizedBox(height: 16),
-
-                            // Botón con gradiente
-                            SizedBox(
-                              width: double.infinity,
-                              height: 56,
-                              child: ElevatedButton(
-                                onPressed: isLoading ? null : _login,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF0F1D33),
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  shadowColor: const Color(
-                                    0xFF0F1D33,
-                                  ).withOpacity(0.4),
-                                ),
-                                child: isLoading
-                                    ? const SizedBox(
-                                        height: 24,
-                                        width: 24,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2.5,
-                                        ),
-                                      )
-                                    : const Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Text(
-                                            "Iniciar sesión",
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              letterSpacing: 0.5,
-                                            ),
+                                  // 1. Emblema e identidad compacta
+                                  Container(
+                                    padding: const EdgeInsets.all(3),
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.25),
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(13),
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: Colors.white.withOpacity(0.15),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.18),
+                                            blurRadius: 16,
+                                            offset: const Offset(0, 6),
                                           ),
-                                          SizedBox(width: 8),
-                                          Icon(Icons.arrow_forward, size: 20),
                                         ],
                                       ),
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-
-                            // Divider con "o"
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Container(
-                                    height: 1,
-                                    color: Colors.grey[300],
+                                      child: const Icon(
+                                        Icons.eco_rounded,
+                                        color: Colors.white,
+                                        size: 34,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                  ),
-                                  child: Text(
-                                    "o",
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    "TerraScope",
                                     style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 14,
+                                      fontSize: 27,
+                                      fontWeight: FontWeight.w900,
+                                      color: Colors.white,
+                                      letterSpacing: 1.8,
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black26,
+                                          offset: Offset(0, 2),
+                                          blurRadius: 6,
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ),
-                                Expanded(
-                                  child: Container(
-                                    height: 1,
-                                    color: Colors.grey[300],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-
-                            // Botón registrarse
-                            Center(
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    "¿No tienes cuenta?",
-                                    style: TextStyle(
-                                      color: Colors.grey[700],
-                                      fontSize: 14,
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 3.5,
                                     ),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => Navigator.pushNamed(
-                                      context,
-                                      '/register',
-                                    ),
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.14),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.22),
+                                        width: 0.8,
                                       ),
                                     ),
                                     child: const Text(
-                                      "Regístrate aquí",
+                                      "EXPLORACIÓN & BIODIVERSIDAD",
                                       style: TextStyle(
-                                        color: Color(0xFF5C6445),
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                        letterSpacing: 1.1,
+                                      ),
+                                    ),
+                                  ),
+
+                                  const Spacer(flex: 1),
+
+                                  // 2. Tarjeta del Formulario
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(24),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.22),
+                                          blurRadius: 24,
+                                          offset: const Offset(0, 10),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 22.0,
+                                        vertical: 18.0,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Text(
+                                            "¡Bienvenido explorador!",
+                                            style: TextStyle(
+                                              fontSize: 19,
+                                              fontWeight: FontWeight.w800,
+                                              color: darkNavy,
+                                              letterSpacing: -0.2,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            "Ingresa tus credenciales para continuar",
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 16),
+
+                                          // Correo
+                                          Text(
+                                            "Correo electrónico",
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: darkNavy.withOpacity(0.85),
+                                              letterSpacing: 0.2,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 5),
+                                          TextField(
+                                            controller: emailController,
+                                            keyboardType: TextInputType.emailAddress,
+                                            textInputAction: TextInputAction.next,
+                                            style: const TextStyle(
+                                              color: darkNavy,
+                                              fontSize: 13.5,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            decoration: InputDecoration(
+                                              filled: true,
+                                              fillColor: const Color(0xFFF6F8F4),
+                                              hintText: "ejemplo@correo.com",
+                                              hintStyle: TextStyle(
+                                                color: Colors.grey[400],
+                                                fontSize: 13,
+                                              ),
+                                              prefixIcon: Container(
+                                                margin: const EdgeInsets.all(8),
+                                                padding: const EdgeInsets.all(5),
+                                                decoration: BoxDecoration(
+                                                  color: primaryGreen.withOpacity(0.12),
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.alternate_email_rounded,
+                                                  color: primaryGreen,
+                                                  size: 16,
+                                                ),
+                                              ),
+                                              contentPadding: const EdgeInsets.symmetric(
+                                                horizontal: 14,
+                                                vertical: 11,
+                                              ),
+                                              border: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(12),
+                                                borderSide: BorderSide(
+                                                  color: Colors.grey[200]!,
+                                                  width: 1,
+                                                ),
+                                              ),
+                                              enabledBorder: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(12),
+                                                borderSide: BorderSide(
+                                                  color: Colors.grey[300]!,
+                                                  width: 1,
+                                                ),
+                                              ),
+                                              focusedBorder: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(12),
+                                                borderSide: const BorderSide(
+                                                  color: primaryGreen,
+                                                  width: 1.8,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 12),
+
+                                          // Contraseña
+                                          Text(
+                                            "Contraseña",
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: darkNavy.withOpacity(0.85),
+                                              letterSpacing: 0.2,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 5),
+                                          TextField(
+                                            controller: passwordController,
+                                            obscureText: _obscurePassword,
+                                            textInputAction: TextInputAction.done,
+                                            onSubmitted: (_) {
+                                              if (!isLoading) _login();
+                                            },
+                                            style: const TextStyle(
+                                              color: darkNavy,
+                                              fontSize: 13.5,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            decoration: InputDecoration(
+                                              filled: true,
+                                              fillColor: const Color(0xFFF6F8F4),
+                                              hintText: "••••••••",
+                                              hintStyle: TextStyle(
+                                                color: Colors.grey[400],
+                                                fontSize: 13,
+                                              ),
+                                              prefixIcon: Container(
+                                                margin: const EdgeInsets.all(8),
+                                                padding: const EdgeInsets.all(5),
+                                                decoration: BoxDecoration(
+                                                  color: primaryGreen.withOpacity(0.12),
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.lock_outline_rounded,
+                                                  color: primaryGreen,
+                                                  size: 16,
+                                                ),
+                                              ),
+                                              suffixIcon: IconButton(
+                                                icon: Icon(
+                                                  _obscurePassword
+                                                      ? Icons.visibility_outlined
+                                                      : Icons.visibility_off_outlined,
+                                                  color: primaryGreen,
+                                                  size: 18,
+                                                ),
+                                                onPressed: () {
+                                                  setState(() {
+                                                    _obscurePassword = !_obscurePassword;
+                                                  });
+                                                },
+                                              ),
+                                              contentPadding: const EdgeInsets.symmetric(
+                                                horizontal: 14,
+                                                vertical: 11,
+                                              ),
+                                              border: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(12),
+                                                borderSide: BorderSide(
+                                                  color: Colors.grey[200]!,
+                                                  width: 1,
+                                                ),
+                                              ),
+                                              enabledBorder: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(12),
+                                                borderSide: BorderSide(
+                                                  color: Colors.grey[300]!,
+                                                  width: 1,
+                                                ),
+                                              ),
+                                              focusedBorder: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(12),
+                                                borderSide: const BorderSide(
+                                                  color: primaryGreen,
+                                                  width: 1.8,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 16),
+
+                                          // Botón Iniciar sesión
+                                          SizedBox(
+                                            width: double.infinity,
+                                            height: 46,
+                                            child: ElevatedButton(
+                                              onPressed: isLoading ? null : _login,
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: primaryGreen,
+                                                foregroundColor: Colors.white,
+                                                elevation: 2,
+                                                shadowColor: primaryGreen.withOpacity(0.4),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                              ),
+                                              child: isLoading
+                                                  ? const SizedBox(
+                                                      height: 19,
+                                                      width: 19,
+                                                      child: CircularProgressIndicator(
+                                                        color: Colors.white,
+                                                        strokeWidth: 2.2,
+                                                      ),
+                                                    )
+                                                  : const Row(
+                                                      mainAxisAlignment: MainAxisAlignment.center,
+                                                      children: [
+                                                        Text(
+                                                          "Iniciar sesión",
+                                                          style: TextStyle(
+                                                            fontSize: 14,
+                                                            fontWeight: FontWeight.bold,
+                                                            letterSpacing: 0.4,
+                                                          ),
+                                                        ),
+                                                        SizedBox(width: 8),
+                                                        Icon(
+                                                          Icons.arrow_forward_rounded,
+                                                          size: 16,
+                                                        ),
+                                                      ],
+                                                    ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 14),
+
+                                          // Divisor "O"
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Divider(
+                                                  color: Colors.grey[200],
+                                                  thickness: 1,
+                                                ),
+                                              ),
+                                              Padding(
+                                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                                child: Text(
+                                                  "O",
+                                                  style: TextStyle(
+                                                    color: Colors.grey[400],
+                                                    fontSize: 10.5,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                              Expanded(
+                                                child: Divider(
+                                                  color: Colors.grey[200],
+                                                  thickness: 1,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 12),
+
+                                          // Registrarse
+                                          Container(
+                                            width: double.infinity,
+                                            decoration: BoxDecoration(
+                                              color: primaryGreen.withOpacity(0.06),
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: primaryGreen.withOpacity(0.18),
+                                                width: 1,
+                                              ),
+                                            ),
+                                            child: Material(
+                                              color: Colors.transparent,
+                                              child: InkWell(
+                                                borderRadius: BorderRadius.circular(12),
+                                                onTap: () => Navigator.pushNamed(
+                                                  context,
+                                                  '/register',
+                                                ),
+                                                child: Padding(
+                                                  padding: const EdgeInsets.symmetric(
+                                                    vertical: 9,
+                                                    horizontal: 14,
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisAlignment: MainAxisAlignment.center,
+                                                    children: [
+                                                      Text(
+                                                        "¿No tienes cuenta? ",
+                                                        style: TextStyle(
+                                                          color: Colors.grey[700],
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                      const Text(
+                                                        "Regístrate aquí",
+                                                        style: TextStyle(
+                                                          color: primaryGreen,
+                                                          fontSize: 12,
+                                                          fontWeight: FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      const Icon(
+                                                        Icons.arrow_forward_ios_rounded,
+                                                        size: 11,
+                                                        color: primaryGreen,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+
+                                  const Spacer(flex: 1),
+
+                                  // 3. Footer
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 6.0, bottom: 2.0),
+                                    child: Text(
+                                      "Al iniciar sesión, aceptas los Términos de Servicio\ny la Política de Privacidad de TerraScope",
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.white.withOpacity(0.75),
+                                        height: 1.35,
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 30),
-                    Text(
-                      "Al iniciar sesión, aceptas nuestros\nTérminos de servicio y Política de privacidad",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: const Color(0xFFE0E0E0).withOpacity(0.7),
-                        height: 1.5,
-                      ),
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
-          ),
+          ],
         ),
       ),
     );

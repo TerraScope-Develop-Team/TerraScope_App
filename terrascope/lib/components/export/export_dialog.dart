@@ -117,7 +117,12 @@ class _ExportDialogState extends State<ExportDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
+        child: SingleChildScrollView(
+          child: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -131,11 +136,13 @@ class _ExportDialogState extends State<ExportDialog> {
                   size: 28,
                 ),
                 const SizedBox(width: 12),
-                const Text(
-                  'Exportar Datos',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                const Expanded(
+                  child: Text(
+                    'Exportar Datos',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close),
                   onPressed: () => Navigator.pop(context),
@@ -277,6 +284,8 @@ class _ExportDialogState extends State<ExportDialog> {
           ],
         ),
       ),
+        ),
+      ),
     );
   }
 
@@ -330,16 +339,22 @@ class _ExportDialogState extends State<ExportDialog> {
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Tipo: ${firstAvistamiento.tipo} | Especie: ${firstAvistamiento.especie}',
                   style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Usuario: ${firstAvistamiento.nombreUsuario}',
                   style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(

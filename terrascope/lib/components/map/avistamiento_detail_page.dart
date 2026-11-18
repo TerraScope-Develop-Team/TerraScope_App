@@ -641,6 +641,7 @@ class _AvistamientoDetailPageState extends State<AvistamientoDetailPage> {
                       TileLayer(
                         urlTemplate:
                             'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.example.terrascope',
                       ),
                       MarkerLayer(
                         markers: [
