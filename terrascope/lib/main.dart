@@ -186,7 +186,7 @@ class _SessionStartPageState extends State<_SessionStartPage> {
   @override
   void initState() {
     super.initState();
-    _hasSavedSession = SessionService().hasSavedSession();
+    _hasSavedSession = SessionService().validateSessionWithServer();
   }
 
   @override
